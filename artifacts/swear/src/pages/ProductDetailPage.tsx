@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { products } from "@/data/products";
+import { getProducts } from "@/hooks/useProducts";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Minus, Plus } from "lucide-react";
@@ -15,10 +15,13 @@ export default function ProductDetailPage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
-  const product = products.find(p => p.id === id);
-  const relatedProducts = products.filter(p => p.category === product?.category && p.id !== product?.id).slice(0, 3);
-  
+
+  const allProducts = getProducts();
+  const product = allProducts.find(p => p.id === id);
+  const relatedProducts = allProducts
+    .filter(p => p.category === product?.category && p.id !== product?.id)
+    .slice(0, 3);
+
   const [mainImage, setMainImage] = useState(product?.images[0] || "");
   const [selectedSize, setSelectedSize] = useState(product?.sizes[0] || "");
   const [selectedColor, setSelectedColor] = useState(product?.colors[0] || "");
@@ -26,7 +29,7 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <div className="container mx-auto px-4 py-32 text-center">
+      <div className="max-w-[1280px] mx-auto px-4 py-32 text-center">
         <h1 className="text-4xl font-display uppercase text-white mb-4">Product Not Found</h1>
         <Link href="/shop" className="text-primary hover:underline">Return to Shop</Link>
       </div>
@@ -51,35 +54,44 @@ export default function ProductDetailPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="container mx-auto px-4 py-12"
+      className="max-w-[1280px] mx-auto px-4 py-12"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-24">
-        {/* Left: Images */}
+        {/* Images */}
         <div className="flex flex-col gap-4">
           <div className="aspect-[3/4] w-full bg-card border border-border">
             <img src={mainImage} alt={product.name} className="w-full h-full object-cover" />
           </div>
           <div className="grid grid-cols-3 gap-4">
             {product.images.map((img, i) => (
-              <button 
-                key={i} 
+              <button
+                key={i}
                 onClick={() => setMainImage(img)}
                 className={`aspect-[3/4] border ${mainImage === img ? 'border-primary' : 'border-border'}`}
               >
-                <img src={img} alt={`${product.name} view ${i+1}`} className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity" />
+                <img src={img} alt={`${product.name} view ${i + 1}`} className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity" />
               </button>
             ))}
           </div>
         </div>
 
-        {/* Right: Info */}
+        {/* Info */}
         <div className="flex flex-col">
           <span className="text-primary font-display uppercase tracking-widest text-sm mb-2">{product.category}</span>
           <h1 className="text-5xl md:text-6xl font-display font-black uppercase text-white mb-4 leading-none">{product.name}</h1>
           <p className="text-3xl text-white mb-8">{product.price} EGP</p>
-          
+
+          <div className="flex gap-2 mb-6">
+            {product.isNew && (
+              <span className="px-3 py-1 bg-primary/10 text-primary border border-primary/20 text-xs uppercase tracking-widest font-bold font-display">NEW</span>
+            )}
+            {product.isBestSeller && (
+              <span className="px-3 py-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs uppercase tracking-widest font-bold font-display">BEST SELLER</span>
+            )}
+          </div>
+
           <p className="text-muted-foreground mb-8">{product.description}</p>
-          
+
           <div className="mb-6">
             <h3 className="font-display uppercase tracking-widest text-white mb-3">SIZE</h3>
             <div className="flex flex-wrap gap-3">
@@ -87,14 +99,18 @@ export default function ProductDetailPage() {
                 <button
                   key={size}
                   onClick={() => setSelectedSize(size)}
-                  className={`h-12 px-6 font-display uppercase tracking-widest font-bold transition-colors ${selectedSize === size ? 'bg-primary text-black' : 'bg-transparent border border-border text-white hover:border-white'}`}
+                  className={`h-12 px-6 font-display uppercase tracking-widest font-bold transition-colors ${
+                    selectedSize === size
+                      ? 'bg-primary text-black'
+                      : 'bg-transparent border border-border text-white hover:border-white'
+                  }`}
                 >
                   {size}
                 </button>
               ))}
             </div>
           </div>
-          
+
           <div className="mb-8">
             <h3 className="font-display uppercase tracking-widest text-white mb-3">COLOR</h3>
             <div className="flex flex-wrap gap-3">
@@ -102,14 +118,18 @@ export default function ProductDetailPage() {
                 <button
                   key={color}
                   onClick={() => setSelectedColor(color)}
-                  className={`h-12 px-6 font-display uppercase tracking-widest font-bold transition-colors ${selectedColor === color ? 'bg-primary text-black' : 'bg-transparent border border-border text-white hover:border-white'}`}
+                  className={`h-12 px-5 font-display uppercase tracking-widest font-bold transition-colors text-sm ${
+                    selectedColor === color
+                      ? 'bg-primary text-black'
+                      : 'bg-transparent border border-border text-white hover:border-white'
+                  }`}
                 >
                   {color}
                 </button>
               ))}
             </div>
           </div>
-          
+
           <div className="mb-8 flex items-center gap-4">
             <h3 className="font-display uppercase tracking-widest text-white">QTY</h3>
             <div className="flex items-center border border-border h-12">
@@ -122,8 +142,8 @@ export default function ProductDetailPage() {
               </button>
             </div>
           </div>
-          
-          <div className="flex flex-col gap-4 mb-12">
+
+          <div className="flex flex-col gap-3 mb-12">
             <motion.button
               whileTap={{ scale: 0.97 }}
               data-testid="btn-add-to-cart"
@@ -139,7 +159,7 @@ export default function ProductDetailPage() {
               </Link>
             </p>
           </div>
-          
+
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="size-guide" className="border-border">
               <AccordionTrigger className="font-display uppercase tracking-widest text-white hover:text-primary transition-colors">Size Guide</AccordionTrigger>
@@ -151,9 +171,9 @@ export default function ProductDetailPage() {
               <AccordionTrigger className="font-display uppercase tracking-widest text-white hover:text-primary transition-colors">Shipping & Returns</AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 <ul className="list-disc pl-5 space-y-2">
-                  <li>3-7 business days delivery</li>
-                  <li>Cash on Delivery available everywhere in Egypt</li>
-                  <li>Free shipping for 2+ items</li>
+                  <li>3–7 business days delivery across Egypt</li>
+                  <li>Cash on Delivery available everywhere</li>
+                  <li>Free shipping on 2+ items</li>
                   <li>7-day exchange policy</li>
                 </ul>
               </AccordionContent>
@@ -162,7 +182,6 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Related Products */}
       {relatedProducts.length > 0 && (
         <div>
           <h2 className="text-4xl font-display uppercase font-bold text-white mb-8 border-t border-border pt-12">RELATED DROPS</h2>

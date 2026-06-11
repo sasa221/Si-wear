@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { products } from "@/data/products";
+import { getProducts } from "@/hooks/useProducts";
 import { ProductGrid } from "@/components/products/ProductGrid";
 
 export default function HomePage() {
-  const latestDrops = products.filter(p => p.isNew);
-  const bestSellers = products.filter(p => p.isBestSeller);
+  const allProducts = getProducts();
+  const latestDrops = allProducts.filter(p => p.isNew);
+  const bestSellers = allProducts.filter(p => p.isBestSeller);
 
   const categoryCards = [
     {
@@ -22,6 +23,11 @@ export default function HomePage() {
       label: "PANTS",
       href: "/shop?category=Pants",
       image: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800&h=1000&fit=crop&q=80",
+    },
+    {
+      label: "HOODIES",
+      href: "/shop?category=Hoodies",
+      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800&h=1000&fit=crop&q=80",
     },
   ];
 
@@ -45,7 +51,6 @@ export default function HomePage() {
           backgroundPosition: "center top",
         }}
       >
-        {/* gradient overlay */}
         <div
           className="absolute inset-0 z-0"
           style={{
@@ -53,7 +58,6 @@ export default function HomePage() {
               "linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.80) 60%, rgba(0,0,0,0.97) 100%)",
           }}
         />
-        {/* neon glow */}
         <div
           className="absolute inset-0 z-0 pointer-events-none"
           style={{
@@ -62,7 +66,6 @@ export default function HomePage() {
           }}
         />
 
-        {/* content */}
         <div className="relative z-10 w-full max-w-5xl mx-auto px-4 py-16 md:py-20 text-center flex flex-col items-center">
           <motion.h1
             className="font-display font-black text-white uppercase text-center"
@@ -114,27 +117,25 @@ export default function HomePage() {
       {/* ── Category Cards ── */}
       <section className="py-10 md:py-14" style={{ background: "#0a0a0a" }}>
         <div className="max-w-[1280px] mx-auto px-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {categoryCards.map((cat, i) => (
               <motion.div
                 key={cat.label}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.08, duration: 0.5 }}
+                transition={{ delay: i * 0.06, duration: 0.5 }}
               >
                 <Link
                   href={cat.href}
                   data-testid={`link-category-${cat.label.toLowerCase()}`}
                   className="group block relative overflow-hidden"
-                  style={{ height: "320px" }}
+                  style={{ height: "300px" }}
                 >
-                  {/* background image */}
                   <div
                     className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
                     style={{ backgroundImage: `url('${cat.image}')` }}
                   />
-                  {/* dark overlay */}
                   <div
                     className="absolute inset-0"
                     style={{
@@ -142,13 +143,11 @@ export default function HomePage() {
                         "linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0.15) 100%)",
                     }}
                   />
-                  {/* neon border on hover */}
                   <div className="absolute inset-0 border-2 border-transparent group-hover:border-primary transition-colors duration-300" />
-                  {/* label */}
-                  <div className="absolute bottom-0 left-0 right-0 p-5">
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
                     <span
                       className="font-display font-black text-white uppercase block"
-                      style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", lineHeight: 1 }}
+                      style={{ fontSize: "clamp(1.1rem, 2.5vw, 1.6rem)", lineHeight: 1 }}
                     >
                       {cat.label}
                     </span>
@@ -164,34 +163,48 @@ export default function HomePage() {
       </section>
 
       {/* ── Latest Drops ── */}
-      <section className="py-10 md:py-14" style={{ background: "#111111" }}>
-        <div className="max-w-[1280px] mx-auto px-4">
-          <motion.h2
-            initial={{ opacity: 0, x: -16 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="text-section font-display font-black text-white uppercase mb-6"
-          >
-            LATEST DROPS
-          </motion.h2>
-          <ProductGrid products={latestDrops} />
-        </div>
-      </section>
+      {latestDrops.length > 0 && (
+        <section className="py-10 md:py-14" style={{ background: "#111111" }}>
+          <div className="max-w-[1280px] mx-auto px-4">
+            <div className="flex items-end justify-between mb-6">
+              <motion.h2
+                initial={{ opacity: 0, x: -16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="text-4xl md:text-5xl font-display font-black text-white uppercase"
+              >
+                LATEST DROPS
+              </motion.h2>
+              <Link href="/shop" className="text-xs text-primary hover:text-white uppercase tracking-widest transition-colors hidden sm:block">
+                VIEW ALL →
+              </Link>
+            </div>
+            <ProductGrid products={latestDrops} />
+          </div>
+        </section>
+      )}
 
       {/* ── Best Sellers ── */}
-      <section className="py-10 md:py-14" style={{ background: "#000000" }}>
-        <div className="max-w-[1280px] mx-auto px-4">
-          <motion.h2
-            initial={{ opacity: 0, x: -16 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="text-section font-display font-black text-white uppercase mb-6"
-          >
-            BEST SELLERS
-          </motion.h2>
-          <ProductGrid products={bestSellers} />
-        </div>
-      </section>
+      {bestSellers.length > 0 && (
+        <section className="py-10 md:py-14" style={{ background: "#000000" }}>
+          <div className="max-w-[1280px] mx-auto px-4">
+            <div className="flex items-end justify-between mb-6">
+              <motion.h2
+                initial={{ opacity: 0, x: -16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="text-4xl md:text-5xl font-display font-black text-white uppercase"
+              >
+                BEST SELLERS
+              </motion.h2>
+              <Link href="/shop" className="text-xs text-primary hover:text-white uppercase tracking-widest transition-colors hidden sm:block">
+                VIEW ALL →
+              </Link>
+            </div>
+            <ProductGrid products={bestSellers} />
+          </div>
+        </section>
+      )}
 
       {/* ── Custom Design Banner ── */}
       <section
@@ -203,7 +216,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-section font-display font-black text-white uppercase mb-4"
+            className="text-4xl md:text-5xl font-display font-black text-white uppercase mb-4"
           >
             CREATE YOUR{" "}
             <span className="text-primary">OWN DESIGN</span>

@@ -3,6 +3,7 @@ import { useLocation, useParams, Link } from "wouter";
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Product } from "@/data/products";
+import { getProducts, saveProducts, getCategories } from "@/hooks/useProducts";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,18 +15,19 @@ import { ArrowLeft } from "lucide-react";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  category: z.enum(['T-Shirts', 'Shirts', 'Pants', 'Custom Design']),
+  category: z.string().min(1, "Category is required"),
   price: z.coerce.number().min(1, "Price must be positive"),
   description: z.string().min(1, "Description is required"),
   imageUrls: z.string().min(1, "At least one image URL is required"),
   sizes: z.array(z.string()).min(1, "Select at least one size"),
   colors: z.string().min(1, "At least one color is required"),
-  status: z.enum(['Active', 'Draft'])
+  isNew: z.boolean(),
+  isBestSeller: z.boolean(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
-const AVAILABLE_SIZES = ["S", "M", "L", "XL", "2XL", "XXL"];
+const AVAILABLE_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 
 export default function ProductFormPage() {
   const { isAdmin } = useAuth();
@@ -33,20 +35,23 @@ export default function ProductFormPage() {
   const params = useParams();
   const { toast } = useToast();
   const isEdit = !!params.id;
+
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
-      category: "T-Shirts",
+      category: "",
       price: 0,
       description: "",
       imageUrls: "",
       sizes: ["M", "L"],
-      colors: "Black",
-      status: "Active"
-    }
+      colors: "",
+      isNew: false,
+      isBestSeller: false,
+    },
   });
 
   useEffect(() => {
@@ -54,10 +59,13 @@ export default function ProductFormPage() {
       setLocation("/admin/login");
       return;
     }
-    const stored = JSON.parse(localStorage.getItem("swear_products") || "[]");
+
+    const stored = getProducts();
+    const cats = getCategories();
     setProducts(stored);
-    
-    if (isEdit && stored.length > 0) {
+    setCategories(cats);
+
+    if (isEdit) {
       const prod = stored.find((p: Product) => p.id === params.id);
       if (prod) {
         form.reset({
@@ -68,9 +76,12 @@ export default function ProductFormPage() {
           imageUrls: prod.images.join("\n"),
           sizes: prod.sizes,
           colors: prod.colors.join(", "),
-          status: "Active"
+          isNew: !!prod.isNew,
+          isBestSeller: !!prod.isBestSeller,
         });
       }
+    } else {
+      form.setValue("category", cats[0] || "");
     }
   }, [isAdmin, setLocation, isEdit, params.id, form]);
 
@@ -79,7 +90,7 @@ export default function ProductFormPage() {
   const onSubmit = (data: ProductFormValues) => {
     const images = data.imageUrls.split("\n").map(s => s.trim()).filter(Boolean);
     const colors = data.colors.split(",").map(s => s.trim()).filter(Boolean);
-    
+
     const newProduct: Product = {
       id: isEdit ? params.id! : "prod-" + Date.now(),
       name: data.name,
@@ -88,19 +99,21 @@ export default function ProductFormPage() {
       description: data.description,
       sizes: data.sizes,
       colors,
-      images
+      images,
+      isNew: data.isNew,
+      isBestSeller: data.isBestSeller,
     };
 
-    let updatedProducts = [...products];
+    let updated = [...products];
     if (isEdit) {
-      const idx = updatedProducts.findIndex(p => p.id === params.id);
-      if (idx !== -1) updatedProducts[idx] = newProduct;
+      const idx = updated.findIndex(p => p.id === params.id);
+      if (idx !== -1) updated[idx] = newProduct;
     } else {
-      updatedProducts.push(newProduct);
+      updated.push(newProduct);
     }
 
-    localStorage.setItem("swear_products", JSON.stringify(updatedProducts));
-    toast({ title: "Success", description: "Product saved successfully" });
+    saveProducts(updated);
+    toast({ title: isEdit ? "Product updated" : "Product created" });
     setLocation("/admin/products");
   };
 
@@ -109,7 +122,7 @@ export default function ProductFormPage() {
       <Link href="/admin/products" className="inline-flex items-center gap-2 text-muted-foreground hover:text-white transition-colors uppercase tracking-widest text-xs mb-8">
         <ArrowLeft size={16} /> BACK TO PRODUCTS
       </Link>
-      
+
       <h1 className="text-3xl md:text-5xl font-display font-black uppercase text-white mb-8">
         {isEdit ? "EDIT PRODUCT" : "NEW PRODUCT"}
       </h1>
@@ -121,11 +134,11 @@ export default function ProductFormPage() {
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Product Name</FormLabel>
-                  <FormControl><Input className="bg-background rounded-none" {...field} /></FormControl>
+                  <FormControl><Input className="bg-background rounded-none" placeholder="Shadow Oversize Tee" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="price" render={({ field }) => (
                   <FormItem>
@@ -138,11 +151,13 @@ export default function ProductFormPage() {
                   <FormItem>
                     <FormLabel className="uppercase text-xs tracking-widest">Category</FormLabel>
                     <FormControl>
-                      <select className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" {...field}>
-                        <option value="T-Shirts">T-Shirts</option>
-                        <option value="Shirts">Shirts</option>
-                        <option value="Pants">Pants</option>
-                        <option value="Custom Design">Custom Design</option>
+                      <select
+                        className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        {...field}
+                      >
+                        {categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -161,8 +176,15 @@ export default function ProductFormPage() {
 
             <FormField control={form.control} name="imageUrls" render={({ field }) => (
               <FormItem>
-                <FormLabel className="uppercase text-xs tracking-widest">Image URLs (One per line)</FormLabel>
-                <FormControl><Textarea className="bg-background rounded-none min-h-[120px]" placeholder="https://..." {...field} /></FormControl>
+                <FormLabel className="uppercase text-xs tracking-widest">Image URLs (one per line)</FormLabel>
+                <FormControl>
+                  <Textarea
+                    className="bg-background rounded-none min-h-[100px] font-mono text-xs"
+                    placeholder={"https://example.com/image1.jpg\nhttps://example.com/image2.jpg"}
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">First URL is the main product image.</p>
                 <FormMessage />
               </FormItem>
             )} />
@@ -170,21 +192,24 @@ export default function ProductFormPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="sizes" render={() => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs tracking-widest mb-3 block">Sizes</FormLabel>
+                  <FormLabel className="uppercase text-xs tracking-widest mb-3 block">Available Sizes</FormLabel>
                   <div className="flex flex-wrap gap-2">
                     {AVAILABLE_SIZES.map(size => (
                       <FormField key={size} control={form.control} name="sizes" render={({ field }) => (
                         <label className={`cursor-pointer flex items-center justify-center w-12 h-10 border text-sm font-display uppercase transition-colors ${
-                          field.value?.includes(size) ? 'bg-primary border-primary text-black' : 'bg-background border-border text-muted-foreground hover:border-primary/50'
+                          field.value?.includes(size)
+                            ? 'bg-primary border-primary text-black'
+                            : 'bg-background border-border text-muted-foreground hover:border-primary/50'
                         }`}>
-                          <input 
-                            type="checkbox" 
-                            className="sr-only" 
+                          <input
+                            type="checkbox"
+                            className="sr-only"
                             checked={field.value?.includes(size)}
-                            onChange={(e) => {
+                            onChange={e => {
                               const current = field.value || [];
-                              const updated = e.target.checked ? [...current, size] : current.filter(s => s !== size);
-                              field.onChange(updated);
+                              field.onChange(
+                                e.target.checked ? [...current, size] : current.filter(s => s !== size)
+                              );
                             }}
                           />
                           {size}
@@ -198,35 +223,56 @@ export default function ProductFormPage() {
 
               <FormField control={form.control} name="colors" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs tracking-widest">Colors (Comma separated)</FormLabel>
-                  <FormControl><Input className="bg-background rounded-none" placeholder="Black, White, Olive" {...field} /></FormControl>
+                  <FormLabel className="uppercase text-xs tracking-widest">Colors (comma separated)</FormLabel>
+                  <FormControl>
+                    <Input className="bg-background rounded-none" placeholder="Black, White, Olive" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">e.g. Black, White, Sage</p>
                   <FormMessage />
                 </FormItem>
               )} />
             </div>
 
-            <FormField control={form.control} name="status" render={({ field }) => (
-              <FormItem className="space-y-3">
-                <FormLabel className="uppercase text-xs tracking-widest">Status</FormLabel>
-                <FormControl>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" value="Active" checked={field.value === "Active"} onChange={field.onChange} className="text-primary focus:ring-primary bg-background border-border" />
-                      <span className="text-sm">Active</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="radio" value="Draft" checked={field.value === "Draft"} onChange={field.onChange} className="text-primary focus:ring-primary bg-background border-border" />
-                      <span className="text-sm">Draft</span>
-                    </label>
+            {/* Flags */}
+            <div className="border border-border p-4 space-y-4">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-2">Product Flags</p>
+              <FormField control={form.control} name="isNew" render={({ field }) => (
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div
+                    onClick={() => field.onChange(!field.value)}
+                    className={`w-5 h-5 border flex items-center justify-center transition-colors flex-shrink-0 ${
+                      field.value ? 'bg-primary border-primary' : 'bg-background border-border group-hover:border-primary/50'
+                    }`}
+                  >
+                    {field.value && <span className="text-black text-xs font-black">✓</span>}
                   </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+                  <div>
+                    <p className="text-white text-sm font-bold uppercase tracking-widest">Mark as NEW</p>
+                    <p className="text-xs text-muted-foreground">Shows "NEW" badge and appears in Latest Drops on homepage</p>
+                  </div>
+                </label>
+              )} />
+              <FormField control={form.control} name="isBestSeller" render={({ field }) => (
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div
+                    onClick={() => field.onChange(!field.value)}
+                    className={`w-5 h-5 border flex items-center justify-center transition-colors flex-shrink-0 ${
+                      field.value ? 'bg-yellow-400 border-yellow-400' : 'bg-background border-border group-hover:border-yellow-400/50'
+                    }`}
+                  >
+                    {field.value && <span className="text-black text-xs font-black">✓</span>}
+                  </div>
+                  <div>
+                    <p className="text-white text-sm font-bold uppercase tracking-widest">Mark as BEST SELLER</p>
+                    <p className="text-xs text-muted-foreground">Shows "BEST SELLER" badge and appears in Best Sellers on homepage</p>
+                  </div>
+                </label>
+              )} />
+            </div>
 
             <div className="pt-6 border-t border-border flex gap-4">
               <button type="submit" className="h-12 px-8 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors">
-                SAVE PRODUCT
+                {isEdit ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
               </button>
               <Link href="/admin/products" className="flex items-center justify-center h-12 px-8 border border-border text-white font-display font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
                 CANCEL

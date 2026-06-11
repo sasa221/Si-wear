@@ -1,0 +1,81 @@
+Stop adding features. Fix the entire mobile UI first.
+
+The current mobile design looks broken and unprofessional. Refactor all pages with a mobile-first layout while keeping the same S! Wear dark/neon streetwear style.
+
+Test and fix at 360px, 390px, 430px, 768px, and 1366px.
+
+Global mobile fixes:
+- No horizontal scrolling anywhere.
+- Body width must never exceed viewport.
+- Use max-width: 100%.
+- Reduce all huge headings using clamp().
+- Add proper mobile padding: 20px max.
+- Make sections shorter and cleaner.
+- Remove excessive empty black spaces.
+- Make all images object-fit: cover.
+- Use correct aspect ratios for product/category images.
+- Buttons must be full width on mobile.
+- Text must not overlap images.
+- Header must be clean and usable.
+
+Mobile header:
+- Show logo left.
+- Show only cart/profile icons and hamburger menu right.
+- Hide desktop nav links on mobile.
+- Hamburger opens a full-screen dark menu with:
+Home, Shop, Custom Design, Size Chart, Contact, Login/Profile.
+- Announcement bar should scroll smoothly and not cut text.
+
+Homepage mobile:
+- Hero should fit the screen nicely, not be oversized.
+- Hero height: min 520px, max 680px on mobile.
+- Headline should be readable, not massive:
+WEAR IT LOUD.
+WEAR IT BOLD.
+- Use a clothing/streetwear background image with dark overlay.
+- Buttons stacked full width.
+- Category cards should stack vertically.
+- Each category card should have a clean clothing image, dark overlay, title, and Shop Now.
+- Latest Drops and Best Sellers should show one product per row on mobile.
+
+Shop page mobile:
+- Do not show sidebar filters as a tall column.
+- Replace sidebar with horizontal category tabs or a filter drawer.
+- Product grid should be 1 column on mobile.
+- Product images should not be too tall: use aspect-ratio 4/5.
+- Product cards should show image, name, price EGP, and View Product button clearly.
+- No nature images. Use clothing placeholder images only.
+
+Product page mobile:
+- Image gallery first.
+- Product info under it.
+- Size buttons in a clean grid.
+- Add to cart full width.
+- Checkout/COD notes readable.
+- Accordions compact.
+
+Cart and Checkout mobile:
+- Cart items stacked cleanly.
+- Quantity controls easy to tap.
+- Checkout form one column.
+- Inputs full width.
+- Order summary under form.
+- Place Order button sticky at bottom or full width.
+
+Account pages mobile:
+Fix Login, Signup, Profile, My Orders, Order Details.
+Cards should fit mobile width.
+No admin sidebar on customer pages.
+
+Admin mobile:
+Admin dashboard should have a collapsible sidebar.
+Tables should become cards on mobile.
+Orders/products must be readable without horizontal overflow.
+
+Important:
+Do not redesign from scratch.
+Do not add new features.
+Do not remove existing pages.
+Only fix responsiveness, spacing, image sizing, mobile navigation, and visual polish.
+Make it look like a real modern local streetwear ecommerce website on phone.
+After fixing, list every file changed.

@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, X, LayoutDashboard, ShoppingBag, Package, LogOut, Store } from "lucide-react";
+import { Menu, X, LayoutDashboard, ShoppingBag, Package, LogOut, Store, Tag } from "lucide-react";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -18,19 +18,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { label: "Products", href: "/admin/products", icon: Package },
+    { label: "Categories", href: "/admin/categories", icon: Tag },
   ];
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/80 z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out flex flex-col
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
@@ -42,16 +41,18 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </button>
         </div>
 
-        <div className="flex-1 py-6 flex flex-col gap-2 px-4 overflow-y-auto">
+        <div className="flex-1 py-6 flex flex-col gap-1 px-4 overflow-y-auto">
           {navItems.map(item => {
-            const isActive = location === item.href || (location.startsWith(item.href) && item.href !== "/admin");
+            const isActive =
+              location === item.href ||
+              (item.href !== "/admin" && location.startsWith(item.href));
             return (
-              <Link 
-                key={item.href} 
+              <Link
+                key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 uppercase tracking-widest text-sm font-bold transition-colors ${
-                  isActive 
-                    ? "bg-primary/10 text-primary border-l-2 border-primary" 
+                  isActive
+                    ? "bg-primary/10 text-primary border-l-2 border-primary"
                     : "text-muted-foreground hover:text-white hover:bg-white/5 border-l-2 border-transparent"
                 }`}
                 onClick={() => setSidebarOpen(false)}
@@ -61,10 +62,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
-          
+
           <div className="my-4 border-t border-border mx-4" />
-          
-          <Link 
+
+          <Link
             href="/"
             className="flex items-center gap-3 px-4 py-3 uppercase tracking-widest text-sm font-bold text-muted-foreground hover:text-white hover:bg-white/5 border-l-2 border-transparent transition-colors"
           >
@@ -75,7 +76,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
         <div className="p-4 border-t border-border">
           <p className="text-xs text-muted-foreground mb-4 px-2 uppercase tracking-widest">Logged in as Admin</p>
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-destructive hover:bg-destructive/10 uppercase tracking-widest text-sm font-bold transition-colors"
           >
@@ -85,7 +86,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-border bg-card flex items-center px-4 md:hidden">
           <button className="text-white" onClick={() => setSidebarOpen(true)}>
@@ -93,7 +93,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </button>
           <span className="ml-4 font-display text-xl font-black text-primary uppercase tracking-widest">ADMIN</span>
         </header>
-        
+
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           {children}
         </main>
