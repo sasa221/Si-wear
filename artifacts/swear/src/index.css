@@ -166,8 +166,8 @@
 
 @layer utilities {
   .text-hero {
-    font-size: clamp(2.5rem, 7vw, 5rem);
-    line-height: 1;
+    font-size: clamp(3rem, 8vw, 7.5rem);
+    line-height: 0.9;
   }
   .text-section {
     font-size: clamp(1.8rem, 4vw, 3rem);
