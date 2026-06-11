@@ -30,6 +30,7 @@ import AdminOrdersPage from "@/pages/admin/AdminOrdersPage";
 import AdminProductsPage from "@/pages/admin/AdminProductsPage";
 import ProductFormPage from "@/pages/admin/ProductFormPage";
 import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
+import AdminDiscountCodesPage from "@/pages/admin/AdminDiscountCodesPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ function AppRouter() {
           <Route path="/admin/products/new" component={ProductFormPage} />
           <Route path="/admin/products/:id/edit" component={ProductFormPage} />
           <Route path="/admin/categories" component={AdminCategoriesPage} />
+          <Route path="/admin/discount-codes" component={AdminDiscountCodesPage} />
           <Route component={NotFound} />
         </Switch>
       </AnimatePresence>

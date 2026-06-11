@@ -173,7 +173,7 @@ export default function ProductDetailPage() {
                 <ul className="list-disc pl-5 space-y-2">
                   <li>3–7 business days delivery across Egypt</li>
                   <li>Cash on Delivery available everywhere</li>
-                  <li>Free shipping on 2+ items</li>
+                  <li>Flat 60 EGP delivery to all governorates</li>
                   <li>7-day exchange policy</li>
                 </ul>
               </AccordionContent>

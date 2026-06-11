@@ -40,12 +40,12 @@ export default function ShippingReturnsPage() {
           <h2 className="text-4xl font-display uppercase text-white mb-6 relative z-10">SHIPPING FEES</h2>
           <div className="space-y-4 text-muted-foreground relative z-10">
             <p className="flex justify-between border-b border-border/50 pb-2">
-              <span className="text-white">Single Item Order</span>
-              <span>60 EGP</span>
+              <span className="text-white">Delivery Fee</span>
+              <span>60 EGP (All governorates)</span>
             </p>
-            <p className="flex justify-between border-b border-primary/30 pb-2 text-primary">
-              <span className="font-bold">2+ Items Order</span>
-              <span className="font-bold">FREE SHIPPING</span>
+            <p className="flex justify-between border-b border-border/50 pb-2">
+              <span className="text-white">Discount Codes</span>
+              <span>Enter at checkout</span>
             </p>
           </div>
         </section>

@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, X, LayoutDashboard, ShoppingBag, Package, LogOut, Store, Tag } from "lucide-react";
+import { Menu, X, LayoutDashboard, ShoppingBag, Package, LogOut, Store, Tag, Percent } from "lucide-react";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -19,6 +19,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { label: "Products", href: "/admin/products", icon: Package },
     { label: "Categories", href: "/admin/categories", icon: Tag },
+    { label: "Discount Codes", href: "/admin/discount-codes", icon: Percent },
   ];
 
   return (

@@ -3,12 +3,11 @@ import { Link } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { Minus, Plus, X, ShoppingBag } from "lucide-react";
 
+const DELIVERY_FEE = 60;
+
 export default function CartPage() {
   const { items, updateQuantity, removeItem, totalPrice } = useCart();
-  
-  const isFreeShipping = items.reduce((acc, item) => acc + item.quantity, 0) >= 2;
-  const deliveryFee = isFreeShipping ? 0 : 60;
-  const finalTotal = totalPrice + deliveryFee;
+  const finalTotal = totalPrice + DELIVERY_FEE;
 
   if (items.length === 0) {
     return (
@@ -36,7 +35,7 @@ export default function CartPage() {
       className="container mx-auto px-4 py-12"
     >
       <h1 className="text-5xl md:text-7xl font-display font-black uppercase text-white mb-12">CART</h1>
-      
+
       <div className="flex flex-col lg:flex-row gap-12">
         <div className="flex-1">
           <div className="border-b border-border pb-4 mb-6 hidden md:grid grid-cols-12 gap-4">
@@ -44,11 +43,10 @@ export default function CartPage() {
             <div className="col-span-3 font-display uppercase tracking-widest text-muted-foreground text-center">Quantity</div>
             <div className="col-span-3 font-display uppercase tracking-widest text-muted-foreground text-right">Total</div>
           </div>
-          
+
           <div className="space-y-6">
             {items.map((item, index) => (
               <div key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${index}`} className="grid grid-cols-1 md:grid-cols-12 gap-4 py-6 border-b border-border items-center">
-                {/* Product Info */}
                 <div className="col-span-1 md:col-span-6 flex gap-4">
                   <div className="w-24 h-32 bg-card flex-shrink-0">
                     <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
@@ -64,8 +62,7 @@ export default function CartPage() {
                     </div>
                   </div>
                 </div>
-                
-                {/* Quantity */}
+
                 <div className="col-span-1 md:col-span-3 flex justify-start md:justify-center items-center">
                   <div className="flex items-center border border-border h-10 w-fit">
                     <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1)} className="px-3 text-white hover:text-primary transition-colors">
@@ -77,11 +74,10 @@ export default function CartPage() {
                     </button>
                   </div>
                 </div>
-                
-                {/* Total & Remove */}
+
                 <div className="col-span-1 md:col-span-3 flex justify-between md:justify-end items-center">
                   <span className="text-xl text-white md:mr-4">{item.product.price * item.quantity} EGP</span>
-                  <button 
+                  <button
                     onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor)}
                     className="text-muted-foreground hover:text-destructive transition-colors p-2"
                     aria-label="Remove item"
@@ -93,11 +89,11 @@ export default function CartPage() {
             ))}
           </div>
         </div>
-        
+
         <div className="w-full lg:w-96 flex-shrink-0">
           <div className="bg-card p-6 border border-border">
             <h2 className="font-display text-2xl uppercase tracking-wider text-white mb-6 border-b border-border pb-4">ORDER SUMMARY</h2>
-            
+
             <div className="space-y-4 mb-6">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
@@ -105,24 +101,22 @@ export default function CartPage() {
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Delivery</span>
-                <span className="text-white">{deliveryFee === 0 ? "FREE" : `${deliveryFee} EGP`}</span>
+                <span className="text-white">{DELIVERY_FEE} EGP</span>
               </div>
-              {deliveryFee > 0 && (
-                <p className="text-xs text-primary">Free delivery for 2+ items!</p>
-              )}
+              <p className="text-xs text-muted-foreground/70 italic">Have a discount code? Apply it at checkout.</p>
             </div>
-            
+
             <div className="border-t border-border pt-4 mb-8">
               <div className="flex justify-between items-end">
                 <span className="font-display uppercase tracking-widest text-lg text-white">Total</span>
                 <span className="text-3xl text-white font-bold">{finalTotal} EGP</span>
               </div>
             </div>
-            
+
             <Link href="/checkout" className="flex h-14 items-center justify-center w-full bg-primary text-black font-display font-bold uppercase tracking-widest text-lg hover:bg-white transition-colors mb-4">
               PROCEED TO CHECKOUT
             </Link>
-            
+
             <Link href="/shop" className="block text-center text-sm text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider underline underline-offset-4">
               CONTINUE SHOPPING
             </Link>

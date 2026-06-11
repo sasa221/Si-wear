@@ -20,9 +20,9 @@ export function Header() {
       {/* Announcement Bar */}
       <div className="w-full bg-primary text-black overflow-hidden relative h-8 flex items-center">
         <div className="marquee-track whitespace-nowrap text-xs font-display uppercase tracking-widest font-bold">
-          <span className="mx-4">FREE SHIPPING ON 2+ ITEMS  •  CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW</span>
-          <span className="mx-4">FREE SHIPPING ON 2+ ITEMS  •  CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW</span>
-          <span className="mx-4">FREE SHIPPING ON 2+ ITEMS  •  CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW</span>
+          <span className="mx-4">CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW  •  CUSTOM DESIGNS AVAILABLE  •  CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW  •  CUSTOM DESIGNS AVAILABLE</span>
+          <span className="mx-4">CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW  •  CUSTOM DESIGNS AVAILABLE  •  CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW  •  CUSTOM DESIGNS AVAILABLE</span>
+          <span className="mx-4">CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW  •  CUSTOM DESIGNS AVAILABLE  •  CASH ON DELIVERY  •  NEW DROPS AVAILABLE NOW  •  CUSTOM DESIGNS AVAILABLE</span>
         </div>
       </div>
 
