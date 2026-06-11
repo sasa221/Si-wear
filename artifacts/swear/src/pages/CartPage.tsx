@@ -15,12 +15,17 @@ export default function CartPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="container mx-auto px-4 py-32 flex flex-col items-center justify-center min-h-[60vh]"
+        className="max-w-[1280px] mx-auto px-4 py-20 md:py-32 flex flex-col items-center justify-center min-h-[60vh]"
       >
-        <ShoppingBag size={64} className="text-border mb-6" />
-        <h1 className="text-4xl font-display uppercase text-white mb-4 text-center">Your Cart is Empty</h1>
-        <p className="text-muted-foreground mb-8 text-center max-w-md">Looks like you haven't added anything to your cart yet.</p>
-        <Link href="/shop" className="inline-flex h-14 items-center justify-center bg-primary text-black font-display font-bold uppercase tracking-widest px-10 hover:bg-white transition-colors">
+        <ShoppingBag size={56} className="text-border mb-5" />
+        <h1 className="font-display uppercase text-white mb-3 text-center"
+          style={{ fontSize: "clamp(1.6rem, 6vw, 3rem)" }}>
+          Your Cart is Empty
+        </h1>
+        <p className="text-muted-foreground mb-8 text-center max-w-xs text-sm">
+          Looks like you haven't added anything to your cart yet.
+        </p>
+        <Link href="/shop" className="flex h-12 items-center justify-center bg-primary text-black font-display font-bold uppercase tracking-widest px-8 hover:bg-white transition-colors w-full max-w-xs">
           SHOP NOW
         </Link>
       </motion.div>
@@ -32,38 +37,64 @@ export default function CartPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="container mx-auto px-4 py-12"
+      className="max-w-[1280px] mx-auto px-4 py-8 md:py-12"
     >
-      <h1 className="text-5xl md:text-7xl font-display font-black uppercase text-white mb-12">CART</h1>
+      <h1 className="font-display font-black uppercase text-white mb-8 md:mb-12"
+        style={{ fontSize: "clamp(2.2rem, 9vw, 5rem)", lineHeight: 0.92 }}>
+        CART
+      </h1>
 
-      <div className="flex flex-col lg:flex-row gap-12">
-        <div className="flex-1">
-          <div className="border-b border-border pb-4 mb-6 hidden md:grid grid-cols-12 gap-4">
-            <div className="col-span-6 font-display uppercase tracking-widest text-muted-foreground">Product</div>
-            <div className="col-span-3 font-display uppercase tracking-widest text-muted-foreground text-center">Quantity</div>
-            <div className="col-span-3 font-display uppercase tracking-widest text-muted-foreground text-right">Total</div>
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-12">
+        {/* Items */}
+        <div className="flex-1 min-w-0">
+          <div className="border-b border-border pb-3 mb-4 hidden md:grid grid-cols-12 gap-4">
+            <div className="col-span-6 font-display uppercase tracking-widest text-muted-foreground text-xs">Product</div>
+            <div className="col-span-3 font-display uppercase tracking-widest text-muted-foreground text-xs text-center">Quantity</div>
+            <div className="col-span-3 font-display uppercase tracking-widest text-muted-foreground text-xs text-right">Total</div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4 md:space-y-6">
             {items.map((item, index) => (
-              <div key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${index}`} className="grid grid-cols-1 md:grid-cols-12 gap-4 py-6 border-b border-border items-center">
-                <div className="col-span-1 md:col-span-6 flex gap-4">
-                  <div className="w-24 h-32 bg-card flex-shrink-0">
+              <div
+                key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${index}`}
+                className="flex gap-3 py-4 border-b border-border items-start md:grid md:grid-cols-12 md:gap-4 md:items-center"
+              >
+                {/* Image + info */}
+                <div className="flex gap-3 flex-1 min-w-0 md:col-span-6">
+                  <div className="w-20 h-26 sm:w-24 sm:h-32 bg-card border border-border flex-shrink-0" style={{ height: "104px" }}>
                     <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
                   </div>
-                  <div className="flex flex-col justify-center">
-                    <Link href={`/shop/${item.product.id}`} className="font-display uppercase text-xl text-white hover:text-primary transition-colors line-clamp-2">
-                      {item.product.name}
-                    </Link>
-                    <p className="text-muted-foreground text-sm mt-1">{item.product.price} EGP</p>
-                    <div className="flex gap-4 mt-2">
-                      <p className="text-sm"><span className="text-muted-foreground">Size:</span> <span className="text-white">{item.selectedSize}</span></p>
-                      <p className="text-sm"><span className="text-muted-foreground">Color:</span> <span className="text-white">{item.selectedColor}</span></p>
+                  <div className="flex flex-col justify-between py-1 min-w-0">
+                    <div>
+                      <Link href={`/shop/${item.product.id}`} className="font-display uppercase text-sm sm:text-base text-white hover:text-primary transition-colors line-clamp-2 leading-tight">
+                        {item.product.name}
+                      </Link>
+                      <p className="text-muted-foreground text-xs mt-1">{item.product.price} EGP</p>
+                      <p className="text-xs mt-0.5 text-muted-foreground">{item.selectedSize} / {item.selectedColor}</p>
+                    </div>
+                    {/* Mobile: qty controls inline */}
+                    <div className="flex items-center justify-between mt-3 md:hidden">
+                      <div className="flex items-center border border-border h-9">
+                        <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1)} className="px-2.5 text-white hover:text-primary transition-colors h-full">
+                          <Minus size={12} />
+                        </button>
+                        <span className="w-7 text-center text-white text-sm">{item.quantity}</span>
+                        <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity + 1)} className="px-2.5 text-white hover:text-primary transition-colors h-full">
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-white font-bold text-sm">{item.product.price * item.quantity} EGP</span>
+                        <button onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
+                          <X size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="col-span-1 md:col-span-3 flex justify-start md:justify-center items-center">
+                {/* Desktop: qty controls */}
+                <div className="col-span-3 hidden md:flex justify-center items-center">
                   <div className="flex items-center border border-border h-10 w-fit">
                     <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1)} className="px-3 text-white hover:text-primary transition-colors">
                       <Minus size={14} />
@@ -75,14 +106,11 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                <div className="col-span-1 md:col-span-3 flex justify-between md:justify-end items-center">
-                  <span className="text-xl text-white md:mr-4">{item.product.price * item.quantity} EGP</span>
-                  <button
-                    onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor)}
-                    className="text-muted-foreground hover:text-destructive transition-colors p-2"
-                    aria-label="Remove item"
-                  >
-                    <X size={20} />
+                {/* Desktop: total + remove */}
+                <div className="col-span-3 hidden md:flex justify-end items-center gap-3">
+                  <span className="text-white font-bold">{item.product.price * item.quantity} EGP</span>
+                  <button onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor)} className="text-muted-foreground hover:text-destructive transition-colors p-2">
+                    <X size={18} />
                   </button>
                 </div>
               </div>
@@ -90,34 +118,37 @@ export default function CartPage() {
           </div>
         </div>
 
-        <div className="w-full lg:w-96 flex-shrink-0">
-          <div className="bg-card p-6 border border-border">
-            <h2 className="font-display text-2xl uppercase tracking-wider text-white mb-6 border-b border-border pb-4">ORDER SUMMARY</h2>
+        {/* Summary */}
+        <div className="w-full lg:w-80 xl:w-96 flex-shrink-0">
+          <div className="bg-card p-5 sm:p-6 border border-border">
+            <h2 className="font-display text-xl sm:text-2xl uppercase tracking-wider text-white mb-5 border-b border-border pb-4">
+              ORDER SUMMARY
+            </h2>
 
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between text-muted-foreground">
+            <div className="space-y-3 mb-5">
+              <div className="flex justify-between text-muted-foreground text-sm">
                 <span>Subtotal</span>
                 <span className="text-white">{totalPrice} EGP</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
+              <div className="flex justify-between text-muted-foreground text-sm">
                 <span>Delivery</span>
                 <span className="text-white">{DELIVERY_FEE} EGP</span>
               </div>
-              <p className="text-xs text-muted-foreground/70 italic">Have a discount code? Apply it at checkout.</p>
+              <p className="text-xs text-muted-foreground/60 italic">Have a discount code? Apply it at checkout.</p>
             </div>
 
-            <div className="border-t border-border pt-4 mb-8">
+            <div className="border-t border-border pt-4 mb-6">
               <div className="flex justify-between items-end">
-                <span className="font-display uppercase tracking-widest text-lg text-white">Total</span>
-                <span className="text-3xl text-white font-bold">{finalTotal} EGP</span>
+                <span className="font-display uppercase tracking-widest text-base sm:text-lg text-white">Total</span>
+                <span className="text-2xl sm:text-3xl text-white font-bold">{finalTotal} EGP</span>
               </div>
             </div>
 
-            <Link href="/checkout" className="flex h-14 items-center justify-center w-full bg-primary text-black font-display font-bold uppercase tracking-widest text-lg hover:bg-white transition-colors mb-4">
+            <Link href="/checkout" className="flex h-12 sm:h-14 items-center justify-center w-full bg-primary text-black font-display font-bold uppercase tracking-widest text-base sm:text-lg hover:bg-white transition-colors mb-4">
               PROCEED TO CHECKOUT
             </Link>
 
-            <Link href="/shop" className="block text-center text-sm text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider underline underline-offset-4">
+            <Link href="/shop" className="block text-center text-xs text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider underline underline-offset-4">
               CONTINUE SHOPPING
             </Link>
           </div>

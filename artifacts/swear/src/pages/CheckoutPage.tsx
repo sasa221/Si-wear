@@ -46,9 +46,7 @@ export default function CheckoutPage() {
   const [appliedCoupon, setAppliedCoupon] = useState<DiscountCode | null>(null);
   const [couponMessage, setCouponMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const discountAmount = appliedCoupon
-    ? calculateDiscount(appliedCoupon, totalPrice)
-    : 0;
+  const discountAmount = appliedCoupon ? calculateDiscount(appliedCoupon, totalPrice) : 0;
   const finalTotal = totalPrice - discountAmount + DELIVERY_FEE;
 
   const form = useForm<CheckoutFormValues>({
@@ -65,26 +63,16 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (user) {
-      form.reset({
-        ...form.getValues(),
-        name: user.name,
-        phone: user.phone
-      });
+      form.reset({ ...form.getValues(), name: user.name, phone: user.phone });
     }
   }, [user, form]);
 
   useEffect(() => {
-    if (!user) {
-      setLocation("/login?redirect=/checkout");
-    }
+    if (!user) setLocation("/login?redirect=/checkout");
   }, [user, setLocation]);
 
   if (!user) return null;
-
-  if (items.length === 0) {
-    setLocation("/cart");
-    return null;
-  }
+  if (items.length === 0) { setLocation("/cart"); return null; }
 
   const handleApplyCoupon = () => {
     if (!couponInput.trim()) return;
@@ -106,7 +94,6 @@ export default function CheckoutPage() {
 
   const onSubmit = (data: CheckoutFormValues) => {
     const orderId = "SW" + Date.now().toString().slice(-6);
-
     const order = {
       id: orderId,
       userId: user.id,
@@ -133,11 +120,7 @@ export default function CheckoutPage() {
       },
       createdAt: new Date().toISOString()
     };
-
-    if (appliedCoupon) {
-      applyDiscountCode(appliedCoupon.id);
-    }
-
+    if (appliedCoupon) applyDiscountCode(appliedCoupon.id);
     saveOrder(order);
     clearCart();
     setLocation("/order-success");
@@ -148,18 +131,24 @@ export default function CheckoutPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="container mx-auto px-4 py-12"
+      className="max-w-[1280px] mx-auto px-4 py-8 md:py-12"
     >
-      <h1 className="text-5xl md:text-7xl font-display font-black uppercase text-white mb-12">CHECKOUT</h1>
+      <h1 className="font-display font-black uppercase text-white mb-8 md:mb-12"
+        style={{ fontSize: "clamp(2rem, 8vw, 5rem)", lineHeight: 0.92 }}>
+        CHECKOUT
+      </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        <div className="lg:col-span-7 xl:col-span-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+        {/* Form */}
+        <div className="lg:col-span-7 xl:col-span-8 order-2 lg:order-1">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <div className="bg-card p-6 border border-border">
-                <h2 className="font-display text-2xl uppercase tracking-wider text-white mb-6 border-b border-border pb-4">SHIPPING DETAILS</h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Shipping */}
+              <div className="bg-card p-4 sm:p-6 border border-border">
+                <h2 className="font-display text-lg sm:text-2xl uppercase tracking-wider text-white mb-5 border-b border-border pb-4">
+                  SHIPPING DETAILS
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="uppercase text-xs tracking-widest">Full Name</FormLabel>
@@ -167,7 +156,6 @@ export default function CheckoutPage() {
                       <FormMessage />
                     </FormItem>
                   )} />
-
                   <FormField control={form.control} name="phone" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="uppercase text-xs tracking-widest">Phone Number</FormLabel>
@@ -175,24 +163,21 @@ export default function CheckoutPage() {
                       <FormMessage />
                     </FormItem>
                   )} />
-
                   <FormField control={form.control} name="governorate" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="uppercase text-xs tracking-widest">Governorate</FormLabel>
                       <FormControl>
                         <select
-                          className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                          className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          style={{ fontSize: "16px" }}
                           {...field}
                         >
-                          {governorates.map(gov => (
-                            <option key={gov} value={gov}>{gov}</option>
-                          ))}
+                          {governorates.map(gov => <option key={gov} value={gov}>{gov}</option>)}
                         </select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
-
                   <FormField control={form.control} name="city" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="uppercase text-xs tracking-widest">City / Area</FormLabel>
@@ -201,23 +186,21 @@ export default function CheckoutPage() {
                     </FormItem>
                   )} />
                 </div>
-
-                <div className="mt-6 space-y-6">
+                <div className="mt-4 sm:mt-6 space-y-4 sm:space-y-6">
                   <FormField control={form.control} name="address" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="uppercase text-xs tracking-widest">Full Address</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Street name, building number, floor, apartment" className="bg-background rounded-none min-h-[100px]" {...field} />
+                        <Textarea placeholder="Street name, building number, floor, apartment" className="bg-background rounded-none min-h-[90px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
-
                   <FormField control={form.control} name="notes" render={({ field }) => (
                     <FormItem>
                       <FormLabel className="uppercase text-xs tracking-widest">Order Notes (Optional)</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Any special delivery instructions?" className="bg-background rounded-none min-h-[80px]" {...field} />
+                        <Textarea placeholder="Any special delivery instructions?" className="bg-background rounded-none min-h-[70px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -225,55 +208,57 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="bg-card p-6 border border-border">
-                <h2 className="font-display text-2xl uppercase tracking-wider text-white mb-4">PAYMENT</h2>
+              {/* Payment */}
+              <div className="bg-card p-4 sm:p-6 border border-border">
+                <h2 className="font-display text-lg sm:text-2xl uppercase tracking-wider text-white mb-4">PAYMENT</h2>
                 <div className="flex items-center gap-3 p-4 border border-border bg-background">
-                  <div className="w-4 h-4 rounded-full bg-primary border-4 border-background ring-1 ring-border"></div>
-                  <span className="uppercase tracking-widest text-white">Cash on Delivery</span>
+                  <div className="w-4 h-4 rounded-full bg-primary border-4 border-background ring-1 ring-border flex-shrink-0" />
+                  <span className="uppercase tracking-widest text-white text-sm sm:text-base">Cash on Delivery</span>
                 </div>
               </div>
 
-              <button type="submit" className="w-full h-16 bg-primary text-black font-display font-black uppercase tracking-widest text-xl hover:bg-white transition-colors">
+              <button type="submit" className="w-full h-14 bg-primary text-black font-display font-black uppercase tracking-widest text-lg hover:bg-white transition-colors">
                 COMPLETE ORDER
               </button>
             </form>
           </Form>
         </div>
 
-        <div className="lg:col-span-5 xl:col-span-4">
-          <div className="bg-card p-6 border border-border sticky top-24">
-            <h2 className="font-display text-2xl uppercase tracking-wider text-white mb-6 border-b border-border pb-4">ORDER SUMMARY</h2>
+        {/* Order Summary */}
+        <div className="lg:col-span-5 xl:col-span-4 order-1 lg:order-2">
+          <div className="bg-card p-4 sm:p-6 border border-border lg:sticky lg:top-24">
+            <h2 className="font-display text-lg sm:text-2xl uppercase tracking-wider text-white mb-5 border-b border-border pb-4">
+              ORDER SUMMARY
+            </h2>
 
-            <div className="space-y-4 mb-6 max-h-[35vh] overflow-y-auto pr-2">
+            {/* Items */}
+            <div className="space-y-3 mb-5 max-h-[35vh] overflow-y-auto pr-1">
               {items.map((item, index) => (
-                <div key={index} className="flex gap-4 items-start">
-                  <div className="w-16 h-20 bg-background border border-border flex-shrink-0 relative">
+                <div key={index} className="flex gap-3 items-start">
+                  <div className="w-14 h-18 sm:w-16 sm:h-20 bg-background border border-border flex-shrink-0 relative" style={{ height: "72px" }}>
                     <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover opacity-80" />
-                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-primary text-black text-[10px] font-bold flex items-center justify-center z-10">
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-black text-[9px] font-bold flex items-center justify-center">
                       {item.quantity}
                     </span>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-display uppercase text-white line-clamp-2 text-sm">{item.product.name}</p>
-                    <p className="text-muted-foreground text-xs mt-1">{item.selectedSize} / {item.selectedColor}</p>
-                    <p className="text-white mt-1 text-sm">{item.product.price * item.quantity} EGP</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display uppercase text-white line-clamp-1 text-xs sm:text-sm">{item.product.name}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5">{item.selectedSize} / {item.selectedColor}</p>
+                    <p className="text-white mt-0.5 text-xs sm:text-sm">{item.product.price * item.quantity} EGP</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Discount Code */}
-            <div className="border border-border p-4 mb-6 bg-background/40">
-              <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground mb-3 font-bold">
-                <Tag size={13} /> DISCOUNT CODE
+            {/* Discount code */}
+            <div className="border border-border p-3 sm:p-4 mb-5 bg-background/40">
+              <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground mb-2.5 font-bold">
+                <Tag size={12} /> DISCOUNT CODE
               </p>
               {appliedCoupon ? (
                 <div className="flex items-center justify-between">
-                  <span className="font-mono font-bold text-primary tracking-widest">{appliedCoupon.code}</span>
-                  <button
-                    onClick={handleRemoveCoupon}
-                    className="text-xs text-muted-foreground hover:text-red-400 uppercase tracking-widest transition-colors"
-                  >
+                  <span className="font-mono font-bold text-primary tracking-widest text-sm">{appliedCoupon.code}</span>
+                  <button onClick={handleRemoveCoupon} className="text-xs text-muted-foreground hover:text-red-400 uppercase tracking-widest transition-colors">
                     REMOVE
                   </button>
                 </div>
@@ -281,19 +266,17 @@ export default function CheckoutPage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    className="flex-1 h-10 bg-background border border-border px-3 text-white font-mono uppercase text-sm outline-none focus:border-primary transition-colors rounded-none"
+                    className="flex-1 h-9 bg-background border border-border px-3 text-white font-mono uppercase text-xs sm:text-sm outline-none focus:border-primary transition-colors"
                     placeholder="ENTER CODE"
                     value={couponInput}
-                    onChange={(e) => {
-                      setCouponInput(e.target.value.toUpperCase());
-                      setCouponMessage(null);
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && handleApplyCoupon()}
+                    onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponMessage(null); }}
+                    onKeyDown={e => e.key === "Enter" && handleApplyCoupon()}
+                    style={{ fontSize: "16px" }}
                   />
                   <button
                     type="button"
                     onClick={handleApplyCoupon}
-                    className="h-10 px-4 bg-primary text-black font-display font-bold uppercase tracking-widest text-xs hover:bg-white transition-colors"
+                    className="h-9 px-3 sm:px-4 bg-primary text-black font-display font-bold uppercase tracking-widest text-xs hover:bg-white transition-colors flex-shrink-0"
                   >
                     APPLY
                   </button>
@@ -301,14 +284,14 @@ export default function CheckoutPage() {
               )}
               {couponMessage && (
                 <p className={`flex items-center gap-1.5 mt-2 text-xs font-bold uppercase tracking-widest ${couponMessage.ok ? "text-primary" : "text-red-400"}`}>
-                  {couponMessage.ok ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                  {couponMessage.ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
                   {couponMessage.text}
                 </p>
               )}
             </div>
 
             {/* Totals */}
-            <div className="border-t border-border pt-4 space-y-3 mb-6">
+            <div className="border-t border-border pt-4 space-y-2.5 mb-5">
               <div className="flex justify-between text-muted-foreground text-sm">
                 <span>Subtotal</span>
                 <span className="text-white">{totalPrice} EGP</span>
@@ -327,12 +310,12 @@ export default function CheckoutPage() {
 
             <div className="border-t border-border pt-4">
               <div className="flex justify-between items-end">
-                <span className="font-display uppercase tracking-widest text-lg text-white">Total</span>
+                <span className="font-display uppercase tracking-widest text-base sm:text-lg text-white">Total</span>
                 <div className="text-right">
                   {discountAmount > 0 && (
-                    <p className="text-muted-foreground line-through text-sm">{totalPrice + DELIVERY_FEE} EGP</p>
+                    <p className="text-muted-foreground line-through text-xs">{totalPrice + DELIVERY_FEE} EGP</p>
                   )}
-                  <span className="text-3xl text-white font-bold">{finalTotal} EGP</span>
+                  <span className="text-2xl sm:text-3xl text-white font-bold">{finalTotal} EGP</span>
                 </div>
               </div>
             </div>
