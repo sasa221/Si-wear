@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "S! Wear"
+version = "1.0.0"
+id = "artifacts/swear"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24159
+
+[services.development]
+run = "pnpm --filter @workspace/swear run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/swear", "run", "build" ]
+publicDir = "artifacts/swear/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24159"
+BASE_PATH = "/"
