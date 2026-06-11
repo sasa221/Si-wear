@@ -1,7 +1,9 @@
 import { useAuth } from "@/context/AuthContext";
+import type { Order } from "@/context/AuthContext";
 import { useLocation, Link, useParams } from "wouter";
-import { useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { dbGetOrderById } from "@/lib/orderService";
 
 function statusClass(status: string) {
   switch (status) {
@@ -15,19 +17,40 @@ function statusClass(status: string) {
 }
 
 export default function OrderDetailPage() {
-  const { user, getUserOrders, getAllOrders, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [, setLocation] = useLocation();
   const params = useParams();
-  const orderId = params.id;
+  const orderId = params.id as string;
+
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) setLocation("/login");
-  }, [user, setLocation]);
+    if (!user) { setLocation("/login"); return; }
+    if (!orderId) return;
+    dbGetOrderById(orderId)
+      .then(found => {
+        // Non-admin customers can only see their own orders
+        if (found && !isAdmin && found.userId !== user.id) {
+          setOrder(null);
+        } else {
+          setOrder(found);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [user, orderId, isAdmin]);
 
   if (!user) return null;
 
-  const orders = isAdmin ? getAllOrders() : getUserOrders();
-  const order = orders.find(o => o.id === orderId);
+  if (loading) {
+    return (
+      <div className="max-w-[1280px] mx-auto px-4 py-24 flex items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 size={20} className="animate-spin" />
+        <span className="uppercase tracking-widest text-sm">Loading order...</span>
+      </div>
+    );
+  }
 
   if (!order) {
     return (
@@ -68,7 +91,7 @@ export default function OrderDetailPage() {
             <div className="divide-y divide-border">
               {order.items.map((item, idx) => (
                 <div key={idx} className="p-4 flex gap-3 sm:gap-4 items-center">
-                  <div className="w-14 h-18 sm:w-16 sm:h-20 bg-card border border-border flex-shrink-0 flex items-center justify-center font-display text-muted-foreground text-xs uppercase" style={{ height: "72px" }}>
+                  <div className="w-14 sm:w-16 bg-card border border-border flex-shrink-0 flex items-center justify-center font-display text-muted-foreground text-xs uppercase" style={{ height: "72px" }}>
                     IMG
                   </div>
                   <div className="flex-1 min-w-0">
@@ -89,17 +112,17 @@ export default function OrderDetailPage() {
             <div className="space-y-2.5 mb-5">
               <div className="flex justify-between text-muted-foreground text-sm">
                 <span>Subtotal</span>
-                <span className="text-white">{order.total - (order as any).deliveryFee} EGP</span>
+                <span className="text-white">{order.total - order.deliveryFee - (order.discountAmount ?? 0)} EGP</span>
               </div>
-              {(order as any).discountAmount > 0 && (
+              {(order.discountAmount ?? 0) > 0 && (
                 <div className="flex justify-between text-sm text-primary font-bold">
-                  <span>Discount ({(order as any).discountCode})</span>
-                  <span>- {(order as any).discountAmount} EGP</span>
+                  <span>Discount ({order.discountCode})</span>
+                  <span>- {order.discountAmount} EGP</span>
                 </div>
               )}
               <div className="flex justify-between text-muted-foreground text-sm">
                 <span>Delivery</span>
-                <span className="text-white">{(order as any).deliveryFee} EGP</span>
+                <span className="text-white">{order.deliveryFee} EGP</span>
               </div>
             </div>
             <div className="border-t border-border pt-4 flex justify-between items-end">

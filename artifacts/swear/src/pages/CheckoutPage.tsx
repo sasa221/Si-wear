@@ -15,7 +15,7 @@ import {
   calculateDiscount,
   DiscountCode,
 } from "@/hooks/useDiscountCodes";
-import { CheckCircle, XCircle, Tag } from "lucide-react";
+import { CheckCircle, XCircle, Tag, Loader2 } from "lucide-react";
 
 const governorates = [
   "Cairo","Giza","Alexandria","Dakahlia","Red Sea","Beheira","Fayoum","Gharbia",
@@ -45,6 +45,8 @@ export default function CheckoutPage() {
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<DiscountCode | null>(null);
   const [couponMessage, setCouponMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const discountAmount = appliedCoupon ? calculateDiscount(appliedCoupon, totalPrice) : 0;
   const finalTotal = totalPrice - discountAmount + DELIVERY_FEE;
@@ -92,38 +94,45 @@ export default function CheckoutPage() {
     setCouponMessage(null);
   };
 
-  const onSubmit = (data: CheckoutFormValues) => {
-    const orderId = "SW" + Date.now().toString().slice(-6);
-    const order = {
-      id: orderId,
-      userId: user.id,
-      items: items.map(i => ({
-        productId: i.product.id,
-        productName: i.product.name,
-        price: i.product.price,
-        selectedSize: i.selectedSize,
-        selectedColor: i.selectedColor,
-        quantity: i.quantity
-      })),
-      total: finalTotal,
-      deliveryFee: DELIVERY_FEE,
-      discountCode: appliedCoupon?.code ?? undefined,
-      discountAmount: discountAmount > 0 ? discountAmount : undefined,
-      status: "Pending" as const,
-      customer: {
-        name: data.name,
-        phone: data.phone,
-        governorate: data.governorate,
-        city: data.city,
-        address: data.address,
-        notes: data.notes
-      },
-      createdAt: new Date().toISOString()
-    };
-    if (appliedCoupon) applyDiscountCode(appliedCoupon.id);
-    saveOrder(order);
-    clearCart();
-    setLocation("/order-success");
+  const onSubmit = async (data: CheckoutFormValues) => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      const orderId = "SW" + Date.now().toString().slice(-6);
+      const order = {
+        id: orderId,
+        userId: user.id,
+        items: items.map(i => ({
+          productId: i.product.id,
+          productName: i.product.name,
+          price: i.product.price,
+          selectedSize: i.selectedSize,
+          selectedColor: i.selectedColor,
+          quantity: i.quantity
+        })),
+        total: finalTotal,
+        deliveryFee: DELIVERY_FEE,
+        ...(appliedCoupon ? { discountCode: appliedCoupon.code, discountAmount: discountAmount } : {}),
+        status: "Pending" as const,
+        customer: {
+          name: data.name,
+          phone: data.phone,
+          governorate: data.governorate,
+          city: data.city,
+          address: data.address,
+          notes: data.notes || undefined
+        },
+        createdAt: new Date().toISOString()
+      };
+      if (appliedCoupon) applyDiscountCode(appliedCoupon.id);
+      await saveOrder(order);
+      clearCart();
+      setLocation("/order-success");
+    } catch (err) {
+      console.error("Failed to place order:", err);
+      setSubmitError("Something went wrong placing your order. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -217,8 +226,26 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <button type="submit" className="w-full h-14 bg-primary text-black font-display font-black uppercase tracking-widest text-lg hover:bg-white transition-colors">
-                COMPLETE ORDER
+              {submitError && (
+                <div className="flex items-center gap-2 p-4 border border-red-500/40 bg-red-500/10 text-red-400 text-sm">
+                  <XCircle size={16} className="flex-shrink-0" />
+                  {submitError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full h-14 bg-primary text-black font-display font-black uppercase tracking-widest text-lg hover:bg-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    PLACING ORDER...
+                  </>
+                ) : (
+                  "COMPLETE ORDER"
+                )}
               </button>
             </form>
           </Form>

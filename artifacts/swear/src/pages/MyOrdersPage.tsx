@@ -1,7 +1,8 @@
 import { useAuth } from "@/context/AuthContext";
+import type { Order } from "@/context/AuthContext";
 import { useLocation, Link } from "wouter";
-import { useEffect } from "react";
-import { Package } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Package, Loader2 } from "lucide-react";
 
 function statusClass(status: string) {
   switch (status) {
@@ -17,14 +18,18 @@ function statusClass(status: string) {
 export default function MyOrdersPage() {
   const { user, getUserOrders } = useAuth();
   const [, setLocation] = useLocation();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) setLocation("/login");
-  }, [user, setLocation]);
+    if (!user) { setLocation("/login"); return; }
+    getUserOrders()
+      .then(setOrders)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [user]);
 
   if (!user) return null;
-
-  const orders = getUserOrders();
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 py-8 md:py-12">
@@ -33,7 +38,12 @@ export default function MyOrdersPage() {
         MY ORDERS
       </h1>
 
-      {orders.length === 0 ? (
+      {loading ? (
+        <div className="py-24 flex items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 size={20} className="animate-spin" />
+          <span className="uppercase tracking-widest text-sm">Loading orders...</span>
+        </div>
+      ) : orders.length === 0 ? (
         <div className="bg-card border border-border py-20 px-6 text-center">
           <Package size={40} className="mx-auto mb-4 text-muted-foreground" />
           <p className="text-muted-foreground mb-6 text-sm uppercase tracking-widest">No orders yet.</p>

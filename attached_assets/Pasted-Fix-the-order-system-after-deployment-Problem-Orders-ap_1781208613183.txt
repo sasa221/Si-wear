@@ -1,0 +1,122 @@
+Fix the order system after deployment.
+
+Problem:
+Orders appear in admin before publishing, but after publishing on Replit, customer orders do not appear in admin dashboard.
+
+Likely cause:
+Orders are stored in localStorage/client-side storage. This only works in the same browser/device and does not share data between customers and admin.
+
+Required fix:
+Move all order storage to a real shared backend/database.
+
+Do not rebuild the website from scratch.
+Inspect the current code first and find where orders are created, saved, read, and displayed in admin.
+
+Use Supabase as the shared database.
+
+Tasks:
+1. Add Supabase integration.
+2. Create .env.example with:
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+3. Create database tables:
+profiles:
+- id
+- full_name
+- phone
+- email
+- role: customer/admin
+- created_at
+
+orders:
+- id
+- order_number
+- customer_id
+- customer_name
+- phone
+- governorate
+- city_area
+- full_address
+- notes
+- subtotal_egp
+- shipping_egp
+- total_egp
+- payment_method default "Cash on Delivery"
+- status default "Pending"
+- created_at
+
+order_items:
+- id
+- order_id
+- product_id
+- product_name
+- size
+- color
+- quantity
+- price_egp
+- image_url
+
+notifications:
+- id
+- customer_id
+- order_id
+- message
+- read
+- created_at
+
+4. Checkout flow:
+When customer places order:
+- Require login.
+- Validate address fields.
+- Save order to Supabase orders table.
+- Save products to order_items table.
+- Do NOT use WhatsApp.
+- Do NOT save only in localStorage.
+- Show success message:
+“Order placed successfully. We’ll contact you to confirm.”
+
+5. Admin dashboard:
+Admin Orders page must read orders from Supabase, not localStorage.
+Show all customer orders from all devices.
+Admin can update order status:
+Pending
+Confirmed
+Preparing
+Out for Delivery
+Delivered
+Cancelled
+
+6. When admin updates order status:
+- Update Supabase order status.
+- Create customer notification in notifications table.
+- Customer can see status update in My Orders/Profile.
+
+7. Keep localStorage only for cart UI before checkout.
+Cart can stay localStorage.
+Final order must be saved to Supabase.
+
+8. Add a temporary development fallback only if Supabase env vars are missing:
+- Show clear console warning.
+- Do not pretend orders are production-ready.
+
+9. Update README with setup steps:
+- How to create Supabase project
+- SQL schema
+- Environment variables
+- How to run locally
+- How to deploy on Replit/Vercel
+
+10. Test:
+- Create order from customer browser.
+- Open admin dashboard in another browser/incognito.
+- Confirm the order appears.
+- Change status from admin.
+- Confirm customer sees new status/notification.
+
+Important:
+Cash on Delivery only.
+EGP only.
+No online payment.
+WhatsApp only for Custom Design page.

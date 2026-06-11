@@ -1,13 +1,14 @@
 import { useAuth } from "@/context/AuthContext";
+import type { Order, Notification } from "@/context/AuthContext";
 import { useLocation, Link } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, BellOff, Package, User, LogOut } from "lucide-react";
+import { Bell, BellOff, Package, User, LogOut, Loader2 } from "lucide-react";
 
 const profileSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -15,7 +16,6 @@ const profileSchema = z.object({
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
-
 type Tab = 'info' | 'orders' | 'notifications';
 
 function statusClass(status: string) {
@@ -32,17 +32,48 @@ function statusClass(status: string) {
 export default function ProfilePage() {
   const {
     user, logout, updateProfile, getUserOrders,
-    getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead
+    getNotifications, markNotificationRead, markAllNotificationsRead
   } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('info');
-  const [notifTick, setNotifTick] = useState(0);
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifsLoading, setNotifsLoading] = useState(false);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
     if (!user) setLocation("/login");
   }, [user, setLocation]);
+
+  const loadOrders = useCallback(async () => {
+    if (!user) return;
+    setOrdersLoading(true);
+    try { setOrders(await getUserOrders()); }
+    catch { /* silent */ }
+    finally { setOrdersLoading(false); }
+  }, [user, getUserOrders]);
+
+  const loadNotifications = useCallback(async () => {
+    if (!user) return;
+    setNotifsLoading(true);
+    try { setNotifications(await getNotifications()); }
+    catch { /* silent */ }
+    finally { setNotifsLoading(false); }
+  }, [user, getNotifications]);
+
+  useEffect(() => {
+    if (activeTab === 'orders') loadOrders();
+  }, [activeTab, loadOrders]);
+
+  useEffect(() => {
+    if (activeTab === 'notifications') loadNotifications();
+  }, [activeTab, loadNotifications]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -50,10 +81,6 @@ export default function ProfilePage() {
   });
 
   if (!user) return null;
-
-  const orders = getUserOrders();
-  const notifications = getNotifications();
-  const unreadCount = getUnreadCount();
 
   const onSubmit = (data: ProfileFormValues) => {
     updateProfile(data);
@@ -66,18 +93,18 @@ export default function ProfilePage() {
     setLocation("/");
   };
 
-  const handleMarkAllRead = () => {
-    markAllNotificationsRead();
-    setNotifTick(t => t + 1);
+  const handleMarkAllRead = async () => {
+    await markAllNotificationsRead();
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const handleMarkRead = (id: string) => {
-    markNotificationRead(id);
-    setNotifTick(t => t + 1);
+  const handleMarkRead = async (id: string) => {
+    await markNotificationRead(id);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
   return (
-    <div className="max-w-[1280px] mx-auto px-4 py-12" key={notifTick}>
+    <div className="max-w-[1280px] mx-auto px-4 py-12">
       <h1 className="font-display font-black uppercase text-white mb-10" style={{ fontSize: "clamp(2.5rem, 6vw, 5rem)" }}>
         MY ACCOUNT
       </h1>
@@ -174,7 +201,12 @@ export default function ProfilePage() {
       {/* Orders Tab */}
       {activeTab === 'orders' && (
         <div>
-          {orders.length === 0 ? (
+          {ordersLoading ? (
+            <div className="py-20 flex items-center justify-center gap-3 text-muted-foreground">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="uppercase tracking-widest text-sm">Loading orders...</span>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="text-center py-20 border border-border bg-card">
               <Package size={40} className="text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground mb-4">You haven't placed any orders yet.</p>
@@ -224,7 +256,12 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {notifications.length === 0 ? (
+          {notifsLoading ? (
+            <div className="py-20 flex items-center justify-center gap-3 text-muted-foreground">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="uppercase tracking-widest text-sm">Loading notifications...</span>
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="text-center py-20 border border-border bg-card">
               <BellOff size={40} className="text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No notifications yet.</p>
@@ -242,7 +279,7 @@ export default function ProfilePage() {
                   }`}
                   onClick={() => !notif.read && handleMarkRead(notif.id)}
                 >
-                  <div className={`mt-0.5 flex-shrink-0 w-2 h-2 rounded-none mt-2 ${notif.read ? 'bg-muted-foreground' : 'bg-primary'}`} />
+                  <div className={`flex-shrink-0 w-2 h-2 mt-2 ${notif.read ? 'bg-muted-foreground' : 'bg-primary'}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm">{notif.message}</p>
                     <p className="text-xs text-muted-foreground mt-1">

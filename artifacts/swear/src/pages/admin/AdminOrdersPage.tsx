@@ -1,10 +1,11 @@
 import { useAuth, OrderStatus } from "@/context/AuthContext";
+import type { Order } from "@/context/AuthContext";
 import { useLocation } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
 
 const ALL_STATUSES: OrderStatus[] = ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
 
@@ -24,18 +25,38 @@ export default function AdminOrdersPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) setLocation("/admin/login");
   }, [isAdmin, setLocation]);
 
-  if (!isAdmin) return null;
+  const loadOrders = useCallback(async (showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
+    try {
+      const data = await getAllOrders();
+      setOrders(data);
+    } catch (err) {
+      console.error("Failed to load orders:", err);
+      toast({ title: "Error", description: "Failed to load orders. Check your connection.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [getAllOrders, toast]);
 
-  const orders = getAllOrders();
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadOrders();
+  }, [isAdmin, loadOrders]);
+
+  if (!isAdmin) return null;
 
   const filtered = orders.filter(o => {
     const matchFilter = filter === "All" || o.status === filter;
@@ -48,15 +69,32 @@ export default function AdminOrdersPage() {
     return matchFilter && matchSearch;
   });
 
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    updateOrderStatus(orderId, newStatus);
-    toast({ title: "Status Updated", description: `Order ${orderId} → ${newStatus}` });
-    setTick(t => t + 1);
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    setUpdatingId(orderId);
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      toast({ title: "Status Updated", description: `Order ${orderId} → ${newStatus}` });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   return (
     <AdminLayout>
-      <h1 className="text-3xl md:text-5xl font-display font-black uppercase text-white mb-6">ORDERS</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl md:text-5xl font-display font-black uppercase text-white">ORDERS</h1>
+        <button
+          onClick={() => loadOrders(true)}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:text-white transition-colors text-xs uppercase tracking-widest"
+        >
+          <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
 
       <div className="bg-card border border-border p-4 mb-4 flex flex-col md:flex-row gap-4 justify-between">
         <div className="flex gap-2 flex-wrap">
@@ -82,122 +120,141 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      <div className="bg-card border border-border overflow-hidden" key={tick}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-widest bg-background/60">
-                <th className="py-3 px-4 font-normal w-8"></th>
-                <th className="py-3 px-4 font-normal">Order</th>
-                <th className="py-3 px-4 font-normal">Customer</th>
-                <th className="py-3 px-4 font-normal">Location</th>
-                <th className="py-3 px-4 font-normal">Items</th>
-                <th className="py-3 px-4 font-normal">Total</th>
-                <th className="py-3 px-4 font-normal">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center text-muted-foreground">No orders found.</td>
+      <div className="bg-card border border-border overflow-hidden">
+        {loading ? (
+          <div className="py-24 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 size={20} className="animate-spin" />
+            <span className="uppercase tracking-widest text-sm">Loading orders...</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-widest bg-background/60">
+                  <th className="py-3 px-4 font-normal w-8"></th>
+                  <th className="py-3 px-4 font-normal">Order</th>
+                  <th className="py-3 px-4 font-normal">Customer</th>
+                  <th className="py-3 px-4 font-normal">Location</th>
+                  <th className="py-3 px-4 font-normal">Items</th>
+                  <th className="py-3 px-4 font-normal">Total</th>
+                  <th className="py-3 px-4 font-normal">Status</th>
                 </tr>
-              ) : filtered.map(order => (
-                <>
-                  <tr
-                    key={order.id}
-                    className="border-b border-border/40 hover:bg-background/30 transition-colors cursor-pointer"
-                    onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
-                  >
-                    <td className="py-3 px-4 text-muted-foreground">
-                      {expandedId === order.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="font-display text-white text-base">{order.id}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString('en-GB')}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="text-white text-sm font-semibold">{order.customer.name}</p>
-                      <p className="text-xs text-muted-foreground">{order.customer.phone}</p>
-                    </td>
-                    <td className="py-3 px-4">
-                      <p className="text-white text-sm">{order.customer.governorate}</p>
-                      <p className="text-xs text-muted-foreground">{order.customer.city}</p>
-                    </td>
-                    <td className="py-3 px-4 text-muted-foreground text-sm">
-                      {order.items.length} item{order.items.length !== 1 ? 's' : ''}
-                    </td>
-                    <td className="py-3 px-4 text-white font-bold text-sm">{order.total} EGP</td>
-                    <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
-                      <select
-                        value={order.status}
-                        onChange={e => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                        className={`h-8 px-2 text-xs uppercase tracking-widest font-bold outline-none cursor-pointer border bg-transparent ${statusClass(order.status)}`}
-                      >
-                        {ALL_STATUSES.map(s => (
-                          <option key={s} value={s} className="bg-[#111] text-white normal-case font-normal">{s}</option>
-                        ))}
-                      </select>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-16 text-center text-muted-foreground uppercase tracking-widest text-sm">
+                      {orders.length === 0 ? "No orders yet." : "No orders match your filter."}
                     </td>
                   </tr>
-
-                  {expandedId === order.id && (
-                    <tr key={`${order.id}-detail`} className="border-b border-border bg-background/40">
-                      <td colSpan={7} className="px-6 py-5">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                          <div>
-                            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-bold border-b border-border pb-2">Customer Details</p>
-                            <div className="space-y-1.5">
-                              <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Name</span><span className="text-white">{order.customer.name}</span></div>
-                              <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Phone</span><span className="text-white">{order.customer.phone}</span></div>
-                              <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Governorate</span><span className="text-white">{order.customer.governorate}</span></div>
-                              <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">City</span><span className="text-white">{order.customer.city}</span></div>
-                              <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Address</span><span className="text-white">{order.customer.address}</span></div>
-                              {order.customer.notes && (
-                                <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Notes</span><span className="text-white">{order.customer.notes}</span></div>
-                              )}
-                              <div className="flex gap-2 pt-1"><span className="text-muted-foreground w-24 flex-shrink-0">Payment</span><span className="text-primary font-bold">Cash on Delivery</span></div>
-                            </div>
-                          </div>
-
-                          <div>
-                            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-bold border-b border-border pb-2">Order Items</p>
-                            <div className="space-y-2">
-                              {order.items.map((item, i) => (
-                                <div key={i} className="border border-border/40 p-3 bg-card">
-                                  <p className="text-white font-display uppercase text-sm">{item.productName}</p>
-                                  <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
-                                    <span>Size: <span className="text-white">{item.selectedSize}</span></span>
-                                    <span>Color: <span className="text-white">{item.selectedColor}</span></span>
-                                    <span>Qty: <span className="text-white">{item.quantity}</span></span>
-                                    <span>Price: <span className="text-white">{item.price * item.quantity} EGP</span></span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-3 pt-3 border-t border-border/40 space-y-1 text-xs">
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Subtotal</span>
-                                <span className="text-white">{order.total - order.deliveryFee} EGP</span>
-                              </div>
-                              <div className="flex justify-between text-muted-foreground">
-                                <span>Shipping</span>
-                                <span className="text-white">{order.deliveryFee === 0 ? 'FREE' : `${order.deliveryFee} EGP`}</span>
-                              </div>
-                              <div className="flex justify-between font-bold text-sm mt-2 pt-2 border-t border-border/40">
-                                <span className="text-white font-display uppercase tracking-widest">Total</span>
-                                <span className="text-primary text-base">{order.total} EGP</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                ) : filtered.map(order => (
+                  <>
+                    <tr
+                      key={order.id}
+                      className="border-b border-border/40 hover:bg-background/30 transition-colors cursor-pointer"
+                      onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
+                    >
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {expandedId === order.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="font-display text-white text-base">{order.id}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString('en-GB')}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="text-white text-sm font-semibold">{order.customer.name}</p>
+                        <p className="text-xs text-muted-foreground">{order.customer.phone}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="text-white text-sm">{order.customer.governorate}</p>
+                        <p className="text-xs text-muted-foreground">{order.customer.city}</p>
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground text-sm">
+                        {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                      </td>
+                      <td className="py-3 px-4 text-white font-bold text-sm">{order.total} EGP</td>
+                      <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                        {updatingId === order.id ? (
+                          <Loader2 size={16} className="animate-spin text-primary" />
+                        ) : (
+                          <select
+                            value={order.status}
+                            onChange={e => handleStatusChange(order.id, e.target.value as OrderStatus)}
+                            className={`h-8 px-2 text-xs uppercase tracking-widest font-bold outline-none cursor-pointer border bg-transparent ${statusClass(order.status)}`}
+                          >
+                            {ALL_STATUSES.map(s => (
+                              <option key={s} value={s} className="bg-[#111] text-white normal-case font-normal">{s}</option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                     </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+                    {expandedId === order.id && (
+                      <tr key={`${order.id}-detail`} className="border-b border-border bg-background/40">
+                        <td colSpan={7} className="px-6 py-5">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                            <div>
+                              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-bold border-b border-border pb-2">Customer Details</p>
+                              <div className="space-y-1.5">
+                                <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Name</span><span className="text-white">{order.customer.name}</span></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Phone</span><span className="text-white">{order.customer.phone}</span></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Governorate</span><span className="text-white">{order.customer.governorate}</span></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">City</span><span className="text-white">{order.customer.city}</span></div>
+                                <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Address</span><span className="text-white">{order.customer.address}</span></div>
+                                {order.customer.notes && (
+                                  <div className="flex gap-2"><span className="text-muted-foreground w-24 flex-shrink-0">Notes</span><span className="text-white">{order.customer.notes}</span></div>
+                                )}
+                                <div className="flex gap-2 pt-1"><span className="text-muted-foreground w-24 flex-shrink-0">Payment</span><span className="text-primary font-bold">Cash on Delivery</span></div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-bold border-b border-border pb-2">Order Items</p>
+                              <div className="space-y-2">
+                                {order.items.map((item, i) => (
+                                  <div key={i} className="border border-border/40 p-3 bg-card">
+                                    <p className="text-white font-display uppercase text-sm">{item.productName}</p>
+                                    <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
+                                      <span>Size: <span className="text-white">{item.selectedSize}</span></span>
+                                      <span>Color: <span className="text-white">{item.selectedColor}</span></span>
+                                      <span>Qty: <span className="text-white">{item.quantity}</span></span>
+                                      <span>Price: <span className="text-white">{item.price * item.quantity} EGP</span></span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="mt-3 pt-3 border-t border-border/40 space-y-1 text-xs">
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Subtotal</span>
+                                  <span className="text-white">{order.total - order.deliveryFee - (order.discountAmount ?? 0)} EGP</span>
+                                </div>
+                                {(order.discountAmount ?? 0) > 0 && (
+                                  <div className="flex justify-between text-primary font-bold">
+                                    <span>Discount ({order.discountCode})</span>
+                                    <span>- {order.discountAmount} EGP</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>Shipping</span>
+                                  <span className="text-white">{order.deliveryFee === 0 ? 'FREE' : `${order.deliveryFee} EGP`}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-sm mt-2 pt-2 border-t border-border/40">
+                                  <span className="text-white font-display uppercase tracking-widest">Total</span>
+                                  <span className="text-primary text-base">{order.total} EGP</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
