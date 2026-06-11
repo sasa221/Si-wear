@@ -1,8 +1,9 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/context/CartContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { AnimatePresence } from "framer-motion";
@@ -18,28 +19,68 @@ import AboutPage from "@/pages/AboutPage";
 import ContactPage from "@/pages/ContactPage";
 import ShippingReturnsPage from "@/pages/ShippingReturnsPage";
 import OrderSuccessPage from "@/pages/OrderSuccessPage";
+import LoginPage from "@/pages/LoginPage";
+import SignupPage from "@/pages/SignupPage";
+import ProfilePage from "@/pages/ProfilePage";
+import MyOrdersPage from "@/pages/MyOrdersPage";
+import OrderDetailPage from "@/pages/OrderDetailPage";
+import AdminLoginPage from "@/pages/admin/AdminLoginPage";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminOrdersPage from "@/pages/admin/AdminOrdersPage";
+import AdminProductsPage from "@/pages/admin/AdminProductsPage";
+import ProductFormPage from "@/pages/admin/ProductFormPage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
 function AppRouter() {
+  const [location] = useLocation();
+  const isAdminRoute = location.startsWith("/admin");
+
+  if (isAdminRoute) {
+    return (
+      <AnimatePresence mode="wait">
+        <Switch>
+          <Route path="/admin/login" component={AdminLoginPage} />
+          <Route path="/admin" component={AdminDashboard} />
+          <Route path="/admin/orders" component={AdminOrdersPage} />
+          <Route path="/admin/products" component={AdminProductsPage} />
+          <Route path="/admin/products/new" component={ProductFormPage} />
+          <Route path="/admin/products/:id/edit" component={ProductFormPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </AnimatePresence>
+    );
+  }
+
   return (
-    <AnimatePresence mode="wait">
-      <Switch>
-        <Route path="/" component={HomePage} />
-        <Route path="/shop" component={ShopPage} />
-        <Route path="/shop/:id" component={ProductDetailPage} />
-        <Route path="/cart" component={CartPage} />
-        <Route path="/checkout" component={CheckoutPage} />
-        <Route path="/custom-design" component={CustomDesignPage} />
-        <Route path="/size-chart" component={SizeChartPage} />
-        <Route path="/about" component={AboutPage} />
-        <Route path="/contact" component={ContactPage} />
-        <Route path="/shipping-returns" component={ShippingReturnsPage} />
-        <Route path="/order-success" component={OrderSuccessPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </AnimatePresence>
+    <div className="flex flex-col min-h-[100dvh] bg-background text-foreground">
+      <Header />
+      <main className="flex-1">
+        <AnimatePresence mode="wait">
+          <Switch>
+            <Route path="/" component={HomePage} />
+            <Route path="/login" component={LoginPage} />
+            <Route path="/signup" component={SignupPage} />
+            <Route path="/profile" component={ProfilePage} />
+            <Route path="/my-orders" component={MyOrdersPage} />
+            <Route path="/orders/:id" component={OrderDetailPage} />
+            <Route path="/shop" component={ShopPage} />
+            <Route path="/shop/:id" component={ProductDetailPage} />
+            <Route path="/cart" component={CartPage} />
+            <Route path="/checkout" component={CheckoutPage} />
+            <Route path="/custom-design" component={CustomDesignPage} />
+            <Route path="/size-chart" component={SizeChartPage} />
+            <Route path="/about" component={AboutPage} />
+            <Route path="/contact" component={ContactPage} />
+            <Route path="/shipping-returns" component={ShippingReturnsPage} />
+            <Route path="/order-success" component={OrderSuccessPage} />
+            <Route component={NotFound} />
+          </Switch>
+        </AnimatePresence>
+      </main>
+      <Footer />
+    </div>
   );
 }
 
@@ -47,18 +88,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <CartProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <div className="flex flex-col min-h-[100dvh] bg-background text-foreground">
-              <Header />
-              <main className="flex-1">
-                <AppRouter />
-              </main>
-              <Footer />
-            </div>
-          </WouterRouter>
-          <Toaster />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <AppRouter />
+            </WouterRouter>
+            <Toaster />
+          </CartProvider>
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -4,9 +4,11 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useEffect } from "react";
 
 const governorates = [
   "Cairo","Giza","Alexandria","Dakahlia","Red Sea","Beheira","Fayoum","Gharbia",
@@ -29,6 +31,7 @@ type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 export default function CheckoutPage() {
   const [, setLocation] = useLocation();
   const { items, totalPrice, clearCart } = useCart();
+  const { user, saveOrder } = useAuth();
   
   const isFreeShipping = items.reduce((acc, item) => acc + item.quantity, 0) >= 2;
   const deliveryFee = isFreeShipping ? 0 : 60;
@@ -37,8 +40,8 @@ export default function CheckoutPage() {
   const form = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      name: "",
-      phone: "",
+      name: user?.name || "",
+      phone: user?.phone || "",
       governorate: "Cairo",
       city: "",
       address: "",
@@ -46,17 +49,56 @@ export default function CheckoutPage() {
     }
   });
 
+  useEffect(() => {
+    if (user) {
+      form.reset({
+        ...form.getValues(),
+        name: user.name,
+        phone: user.phone
+      });
+    }
+  }, [user, form]);
+
   if (items.length === 0) {
     setLocation("/cart");
     return null;
   }
 
   const onSubmit = (data: CheckoutFormValues) => {
+    const orderId = "SW" + Date.now().toString().slice(-6);
+    
+    const order = {
+      id: orderId,
+      userId: user?.id,
+      items: items.map(i => ({
+        productId: i.product.id,
+        productName: i.product.name,
+        price: i.product.price,
+        selectedSize: i.selectedSize,
+        selectedColor: i.selectedColor,
+        quantity: i.quantity
+      })),
+      total: finalTotal,
+      deliveryFee,
+      status: "Pending" as const,
+      customer: {
+        name: data.name,
+        phone: data.phone,
+        governorate: data.governorate,
+        city: data.city,
+        address: data.address,
+        notes: data.notes
+      },
+      createdAt: new Date().toISOString()
+    };
+    
+    saveOrder(order);
+
     const itemsList = items.map(i => 
       `- ${i.product.name} | Size: ${i.selectedSize} | Color: ${i.selectedColor} | Qty: ${i.quantity} | ${i.product.price * i.quantity} EGP`
     ).join('\n');
 
-    const message = `NEW ORDER - S! Wear\n\nCustomer Details:\nName: ${data.name}\nPhone: ${data.phone}\nGovernorate: ${data.governorate}\nCity: ${data.city}\nAddress: ${data.address}\n\nOrder Items:\n${itemsList}\n\nSubtotal: ${totalPrice} EGP\nDelivery: ${deliveryFee === 0 ? 'Free' : `${deliveryFee} EGP`}\nTotal: ${finalTotal} EGP\n\nNotes: ${data.notes || 'None'}\n\nPayment: Cash on Delivery`;
+    const message = `NEW ORDER - S! Wear\nOrder ID: ${orderId}\n\nCustomer Details:\nName: ${data.name}\nPhone: ${data.phone}\nGovernorate: ${data.governorate}\nCity: ${data.city}\nAddress: ${data.address}\n\nOrder Items:\n${itemsList}\n\nSubtotal: ${totalPrice} EGP\nDelivery: ${deliveryFee === 0 ? 'Free' : `${deliveryFee} EGP`}\nTotal: ${finalTotal} EGP\n\nNotes: ${data.notes || 'None'}\n\nPayment: Cash on Delivery`;
 
     window.open(`https://wa.me/201220172714?text=${encodeURIComponent(message)}`, "_blank");
     clearCart();

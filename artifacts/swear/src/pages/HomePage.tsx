@@ -16,10 +16,10 @@ export default function HomePage() {
       className="w-full"
     >
       {/* Hero Section */}
-      <section className="relative w-full h-[100dvh] flex flex-col justify-center items-center px-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#002200] via-black to-black">
+      <section className="hero-gradient relative w-full h-[75vh] min-h-[60vh] flex flex-col justify-center items-center px-4 overflow-hidden">
         <div className="z-10 text-center max-w-4xl mx-auto flex flex-col items-center">
           <motion.h1 
-            className="text-6xl md:text-8xl lg:text-9xl font-display font-black text-white uppercase leading-none text-center"
+            className="text-hero font-display font-black text-white uppercase leading-none text-center"
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.8 }}
@@ -31,7 +31,7 @@ export default function HomePage() {
           </motion.h1>
           
           <motion.p 
-            className="mt-6 md:mt-10 text-lg md:text-xl text-gray-300 max-w-2xl text-center"
+            className="mt-6 md:mt-10 text-body text-gray-300 max-w-[560px] text-center mx-auto"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4, duration: 0.6 }}
@@ -40,15 +40,15 @@ export default function HomePage() {
           </motion.p>
           
           <motion.div 
-            className="mt-10 flex flex-col sm:flex-row gap-4 w-full sm:w-auto justify-center"
+            className="mt-10 flex flex-col md:flex-row gap-4 w-full md:w-auto justify-center"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.6 }}
           >
-            <Link href="/shop" className="inline-flex h-14 items-center justify-center bg-primary text-primary-foreground font-display font-bold uppercase tracking-widest px-8 hover:bg-white transition-colors">
+            <Link href="/shop" className="inline-flex h-12 md:h-14 items-center justify-center bg-primary text-primary-foreground font-display font-bold uppercase tracking-widest px-8 hover:bg-white transition-colors">
               SHOP NOW
             </Link>
-            <Link href="/custom-design" className="inline-flex h-14 items-center justify-center border-2 border-white text-white font-display font-bold uppercase tracking-widest px-8 hover:bg-white hover:text-black transition-colors">
+            <Link href="/custom-design" className="inline-flex h-12 md:h-14 items-center justify-center border-2 border-white text-white font-display font-bold uppercase tracking-widest px-8 hover:bg-white hover:text-black transition-colors">
               CREATE YOUR DESIGN
             </Link>
           </motion.div>
@@ -56,31 +56,31 @@ export default function HomePage() {
       </section>
 
       {/* Category Cards */}
-      <section className="py-20 container mx-auto px-4">
+      <section className="py-12 md:py-16 container">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Link href="/shop?category=T-Shirts" className="group block relative h-80 bg-card overflow-hidden border border-border hover:border-primary transition-colors flex items-center justify-center">
+          <Link href="/shop?category=T-Shirts" className="group block relative h-64 md:h-80 bg-card overflow-hidden border border-border hover:border-primary transition-colors flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-card to-black opacity-80 z-0"></div>
-            <h2 className="relative z-10 font-display text-4xl text-white uppercase tracking-wider group-hover:scale-110 transition-transform duration-300">T-SHIRTS</h2>
+            <h2 className="relative z-10 text-card font-display text-white uppercase tracking-wider group-hover:scale-110 transition-transform duration-300">T-SHIRTS</h2>
           </Link>
-          <Link href="/shop?category=Shirts" className="group block relative h-80 bg-card overflow-hidden border border-border hover:border-primary transition-colors flex items-center justify-center">
+          <Link href="/shop?category=Shirts" className="group block relative h-64 md:h-80 bg-card overflow-hidden border border-border hover:border-primary transition-colors flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-card to-black opacity-80 z-0"></div>
-            <h2 className="relative z-10 font-display text-4xl text-white uppercase tracking-wider group-hover:scale-110 transition-transform duration-300">SHIRTS</h2>
+            <h2 className="relative z-10 text-card font-display text-white uppercase tracking-wider group-hover:scale-110 transition-transform duration-300">SHIRTS</h2>
           </Link>
-          <Link href="/shop?category=Pants" className="group block relative h-80 bg-card overflow-hidden border border-border hover:border-primary transition-colors flex items-center justify-center">
+          <Link href="/shop?category=Pants" className="group block relative h-64 md:h-80 bg-card overflow-hidden border border-border hover:border-primary transition-colors flex items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-card to-black opacity-80 z-0"></div>
-            <h2 className="relative z-10 font-display text-4xl text-white uppercase tracking-wider group-hover:scale-110 transition-transform duration-300">PANTS</h2>
+            <h2 className="relative z-10 text-card font-display text-white uppercase tracking-wider group-hover:scale-110 transition-transform duration-300">PANTS</h2>
           </Link>
         </div>
       </section>
 
       {/* Latest Drops */}
-      <section className="py-20 bg-card">
-        <div className="container mx-auto px-4">
+      <section className="py-12 md:py-16 bg-card">
+        <div className="container">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-4xl md:text-6xl font-display uppercase font-bold text-white mb-12"
+            className="text-section font-display uppercase font-bold text-white mb-8"
           >
             LATEST DROPS
           </motion.h2>
@@ -89,12 +89,12 @@ export default function HomePage() {
       </section>
 
       {/* Best Sellers */}
-      <section className="py-20 container mx-auto px-4">
+      <section className="py-12 md:py-16 container">
         <motion.h2 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-4xl md:text-6xl font-display uppercase font-bold text-white mb-12"
+          className="text-section font-display uppercase font-bold text-white mb-8"
         >
           BEST SELLERS
         </motion.h2>
@@ -102,36 +102,36 @@ export default function HomePage() {
       </section>
 
       {/* Custom Design Banner */}
-      <section className="py-24 bg-card w-full border-y border-border">
-        <div className="container mx-auto px-4 text-center flex flex-col items-center">
+      <section className="py-12 md:py-16 bg-card w-full border-y border-border">
+        <div className="container text-center flex flex-col items-center">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-5xl md:text-7xl font-display uppercase font-bold text-white mb-6"
+            className="text-section font-display uppercase font-bold text-white mb-6"
           >
             CREATE YOUR<br/><span className="text-primary">OWN DESIGN</span>
           </motion.h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mb-10">
+          <p className="text-body text-muted-foreground max-w-2xl mb-10">
             Send your idea. Choose your fit. We'll bring it to life.
           </p>
-          <Link href="/custom-design" className="inline-flex h-14 items-center justify-center bg-primary text-primary-foreground font-display font-bold uppercase tracking-widest px-10 hover:bg-white transition-colors">
+          <Link href="/custom-design" className="inline-flex h-12 md:h-14 items-center justify-center bg-primary text-primary-foreground font-display font-bold uppercase tracking-widest px-10 hover:bg-white transition-colors">
             START DESIGNING
           </Link>
         </div>
       </section>
 
       {/* Brand Statement */}
-      <section className="py-32 container mx-auto px-4 flex flex-col items-center text-center">
+      <section className="py-16 md:py-24 container flex flex-col items-center text-center">
         <motion.h2 
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          className="text-7xl md:text-9xl font-display uppercase font-black text-white leading-none mb-8 tracking-tighter"
+          className="text-hero font-display uppercase font-black text-white leading-none mb-8 tracking-tighter"
         >
           QUALITY<br/>OVER<br/>QUANTITY
         </motion.h2>
-        <p className="text-xl md:text-2xl text-muted-foreground uppercase tracking-widest font-display">
+        <p className="text-body text-muted-foreground uppercase tracking-widest font-display">
           The difference between quality and quantity is S! Wear.
         </p>
       </section>
