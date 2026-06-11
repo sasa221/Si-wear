@@ -38,3 +38,16 @@ export function saveCategories(categories: string[]): void {
   localStorage.setItem("swear_categories", JSON.stringify(categories));
   localStorage.setItem("swear_categories_version", CATEGORIES_VERSION);
 }
+
+/** Maps category name → image URL or base64 data URI */
+export function getCategoryImages(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem("swear_category_images");
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return {};
+}
+
+export function saveCategoryImages(images: Record<string, string>): void {
+  localStorage.setItem("swear_category_images", JSON.stringify(images));
+}

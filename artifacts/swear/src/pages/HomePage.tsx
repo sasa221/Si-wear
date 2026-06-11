@@ -1,35 +1,30 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { getProducts } from "@/hooks/useProducts";
+import { getProducts, getCategories, getCategoryImages } from "@/hooks/useProducts";
 import { ProductGrid } from "@/components/products/ProductGrid";
+
+const FALLBACK_IMAGES: Record<string, string> = {
+  "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
+  "Shirts":    "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=600&h=750&fit=crop&q=80",
+  "Pants":     "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=600&h=750&fit=crop&q=80",
+  "Hoodies":   "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop&q=80",
+};
+
+const GENERIC_FALLBACK = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&h=750&fit=crop&q=80";
 
 export default function HomePage() {
   const allProducts = getProducts();
   const latestDrops = allProducts.filter(p => p.isNew);
   const bestSellers = allProducts.filter(p => p.isBestSeller);
 
-  const categoryCards = [
-    {
-      label: "T-SHIRTS",
-      href: "/shop?category=T-Shirts",
-      image: "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
-    },
-    {
-      label: "SHIRTS",
-      href: "/shop?category=Shirts",
-      image: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=600&h=750&fit=crop&q=80",
-    },
-    {
-      label: "PANTS",
-      href: "/shop?category=Pants",
-      image: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=600&h=750&fit=crop&q=80",
-    },
-    {
-      label: "HOODIES",
-      href: "/shop?category=Hoodies",
-      image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop&q=80",
-    },
-  ];
+  const categories = getCategories();
+  const categoryImages = getCategoryImages();
+
+  const categoryCards = categories.map(name => ({
+    label: name,
+    href: `/shop?category=${encodeURIComponent(name)}`,
+    image: categoryImages[name] || FALLBACK_IMAGES[name] || GENERIC_FALLBACK,
+  }));
 
   return (
     <motion.div
@@ -105,51 +100,58 @@ export default function HomePage() {
       </section>
 
       {/* ── Category Cards ── */}
-      <section className="py-8 md:py-12" style={{ background: "#0a0a0a" }}>
-        <div className="max-w-[1280px] mx-auto px-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {categoryCards.map((cat, i) => (
-              <motion.div
-                key={cat.label}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05, duration: 0.5 }}
-              >
-                <Link
-                  href={cat.href}
-                  className="group block relative overflow-hidden"
-                  style={{ aspectRatio: "3/4" }}
+      {categoryCards.length > 0 && (
+        <section className="py-8 md:py-12" style={{ background: "#0a0a0a" }}>
+          <div className="max-w-[1280px] mx-auto px-4">
+            <div className={`grid gap-3 sm:gap-4 ${
+              categoryCards.length === 1 ? "grid-cols-1 max-w-xs mx-auto" :
+              categoryCards.length === 2 ? "grid-cols-2" :
+              categoryCards.length === 3 ? "grid-cols-2 sm:grid-cols-3" :
+              "grid-cols-2 lg:grid-cols-4"
+            }`}>
+              {categoryCards.map((cat, i) => (
+                <motion.div
+                  key={cat.label}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.05, duration: 0.5 }}
                 >
-                  <div
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-                    style={{ backgroundImage: `url('${cat.image}')` }}
-                  />
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background:
-                        "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 55%, rgba(0,0,0,0.1) 100%)",
-                    }}
-                  />
-                  <div className="absolute inset-0 border-2 border-transparent group-hover:border-primary transition-colors duration-300 pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
-                    <span
-                      className="font-display font-black text-white uppercase block"
-                      style={{ fontSize: "clamp(0.9rem, 3vw, 1.4rem)", lineHeight: 1 }}
-                    >
-                      {cat.label}
-                    </span>
-                    <span className="text-[10px] sm:text-xs text-primary uppercase tracking-widest font-display mt-1 block">
-                      SHOP NOW →
-                    </span>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
+                  <Link
+                    href={cat.href}
+                    className="group block relative overflow-hidden"
+                    style={{ aspectRatio: "3/4" }}
+                  >
+                    <div
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                      style={{ backgroundImage: `url('${cat.image}')` }}
+                    />
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 55%, rgba(0,0,0,0.1) 100%)",
+                      }}
+                    />
+                    <div className="absolute inset-0 border-2 border-transparent group-hover:border-primary transition-colors duration-300 pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4">
+                      <span
+                        className="font-display font-black text-white uppercase block"
+                        style={{ fontSize: "clamp(0.9rem, 3vw, 1.4rem)", lineHeight: 1 }}
+                      >
+                        {cat.label}
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-primary uppercase tracking-widest font-display mt-1 block">
+                        SHOP NOW →
+                      </span>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── Latest Drops ── */}
       {latestDrops.length > 0 && (
@@ -234,9 +236,7 @@ export default function HomePage() {
           >
             QUALITY<br />OVER<br />QUANTITY
           </motion.h2>
-          <p
-            className="mt-4 text-gray-400 uppercase tracking-widest font-display text-xs sm:text-sm"
-          >
+          <p className="mt-4 text-gray-400 uppercase tracking-widest font-display text-xs sm:text-sm">
             The difference between quality and quantity is S! Wear.
           </p>
         </div>
