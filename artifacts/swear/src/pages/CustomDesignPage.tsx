@@ -4,7 +4,7 @@ import { Paintbrush, Send, Zap } from "lucide-react";
 
 export default function CustomDesignPage() {
   const handleWhatsApp = () => {
-    const message = "Hi! I want a custom design order from S! Wear. Please share more details.";
+    const message = "Hello S! Wear, I want to create a custom design.\nProduct type: \nSize: \nColor: \nDesign idea: ";
     window.open(`https://wa.me/201220172714?text=${encodeURIComponent(message)}`, "_blank");
   };
 

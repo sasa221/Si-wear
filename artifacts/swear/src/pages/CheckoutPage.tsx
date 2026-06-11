@@ -59,6 +59,14 @@ export default function CheckoutPage() {
     }
   }, [user, form]);
 
+  useEffect(() => {
+    if (!user) {
+      setLocation("/login?redirect=/checkout");
+    }
+  }, [user, setLocation]);
+
+  if (!user) return null;
+
   if (items.length === 0) {
     setLocation("/cart");
     return null;
@@ -66,10 +74,10 @@ export default function CheckoutPage() {
 
   const onSubmit = (data: CheckoutFormValues) => {
     const orderId = "SW" + Date.now().toString().slice(-6);
-    
+
     const order = {
       id: orderId,
-      userId: user?.id,
+      userId: user.id,
       items: items.map(i => ({
         productId: i.product.id,
         productName: i.product.name,
@@ -91,16 +99,8 @@ export default function CheckoutPage() {
       },
       createdAt: new Date().toISOString()
     };
-    
+
     saveOrder(order);
-
-    const itemsList = items.map(i => 
-      `- ${i.product.name} | Size: ${i.selectedSize} | Color: ${i.selectedColor} | Qty: ${i.quantity} | ${i.product.price * i.quantity} EGP`
-    ).join('\n');
-
-    const message = `NEW ORDER - S! Wear\nOrder ID: ${orderId}\n\nCustomer Details:\nName: ${data.name}\nPhone: ${data.phone}\nGovernorate: ${data.governorate}\nCity: ${data.city}\nAddress: ${data.address}\n\nOrder Items:\n${itemsList}\n\nSubtotal: ${totalPrice} EGP\nDelivery: ${deliveryFee === 0 ? 'Free' : `${deliveryFee} EGP`}\nTotal: ${finalTotal} EGP\n\nNotes: ${data.notes || 'None'}\n\nPayment: Cash on Delivery`;
-
-    window.open(`https://wa.me/201220172714?text=${encodeURIComponent(message)}`, "_blank");
     clearCart();
     setLocation("/order-success");
   };

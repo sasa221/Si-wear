@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Bell, BellOff, Package, User, LogOut } from "lucide-react";
 
 const profileSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -15,16 +16,32 @@ const profileSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
+type Tab = 'info' | 'orders' | 'notifications';
+
+function statusClass(status: string) {
+  switch (status) {
+    case 'Delivered': return 'bg-green-500/20 text-green-500';
+    case 'Cancelled': return 'bg-red-500/20 text-red-500';
+    case 'Confirmed': return 'bg-blue-500/20 text-blue-500';
+    case 'Preparing': return 'bg-orange-500/20 text-orange-400';
+    case 'Out for Delivery': return 'bg-purple-500/20 text-purple-400';
+    default: return 'bg-yellow-500/20 text-yellow-400';
+  }
+}
+
 export default function ProfilePage() {
-  const { user, logout, updateProfile, getUserOrders } = useAuth();
+  const {
+    user, logout, updateProfile, getUserOrders,
+    getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead
+  } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('info');
+  const [notifTick, setNotifTick] = useState(0);
 
   useEffect(() => {
-    if (!user) {
-      setLocation("/login");
-    }
+    if (!user) setLocation("/login");
   }, [user, setLocation]);
 
   const form = useForm<ProfileFormValues>({
@@ -34,12 +51,14 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  const orders = getUserOrders().slice(0, 3);
+  const orders = getUserOrders();
+  const notifications = getNotifications();
+  const unreadCount = getUnreadCount();
 
   const onSubmit = (data: ProfileFormValues) => {
     updateProfile(data);
     setIsEditing(false);
-    toast({ title: "Success", description: "Profile updated successfully" });
+    toast({ title: "Profile updated" });
   };
 
   const handleLogout = () => {
@@ -47,29 +66,77 @@ export default function ProfilePage() {
     setLocation("/");
   };
 
+  const handleMarkAllRead = () => {
+    markAllNotificationsRead();
+    setNotifTick(t => t + 1);
+  };
+
+  const handleMarkRead = (id: string) => {
+    markNotificationRead(id);
+    setNotifTick(t => t + 1);
+  };
+
   return (
-    <div className="container mx-auto px-4 py-12">
-      <h1 className="text-5xl md:text-7xl font-display font-black uppercase text-white mb-12">MY PROFILE</h1>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        <div className="lg:col-span-1 space-y-8">
+    <div className="max-w-[1280px] mx-auto px-4 py-12" key={notifTick}>
+      <h1 className="font-display font-black uppercase text-white mb-10" style={{ fontSize: "clamp(2.5rem, 6vw, 5rem)" }}>
+        MY ACCOUNT
+      </h1>
+
+      {/* Tab nav */}
+      <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
+        {([
+          { key: 'info', label: 'Profile', icon: <User size={14} /> },
+          { key: 'orders', label: 'My Orders', icon: <Package size={14} /> },
+          { key: 'notifications', label: `Notifications${unreadCount > 0 ? ` (${unreadCount})` : ''}`, icon: <Bell size={14} /> },
+        ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-2 px-5 py-3 font-display uppercase tracking-widest text-sm whitespace-nowrap transition-colors border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-white'
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.key === 'notifications' && unreadCount > 0 && (
+              <span className="ml-1 w-5 h-5 bg-primary text-black text-[10px] font-black rounded-none flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        ))}
+
+        <button
+          onClick={handleLogout}
+          className="ml-auto flex items-center gap-2 px-5 py-3 font-display uppercase tracking-widest text-sm text-muted-foreground hover:text-red-400 transition-colors whitespace-nowrap border-b-2 border-transparent -mb-px"
+        >
+          <LogOut size={14} />
+          Logout
+        </button>
+      </div>
+
+      {/* Profile Tab */}
+      {activeTab === 'info' && (
+        <div className="max-w-md">
           <div className="bg-card p-6 border border-border">
-            <h2 className="font-display text-2xl uppercase tracking-wider text-white mb-6 border-b border-border pb-4">INFO</h2>
+            <h2 className="font-display text-xl uppercase tracking-wider text-white mb-6 border-b border-border pb-4">PERSONAL INFO</h2>
             {!isEditing ? (
               <div className="space-y-4">
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Name</p>
-                  <p className="text-lg text-white">{user.name}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Name</p>
+                  <p className="text-white">{user.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Email</p>
-                  <p className="text-lg text-white">{user.email}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Email</p>
+                  <p className="text-white">{user.email}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest">Phone</p>
-                  <p className="text-lg text-white">{user.phone}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Phone</p>
+                  <p className="text-white">{user.phone}</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsEditing(true)}
                   className="mt-4 w-full h-10 border border-primary text-primary font-display font-bold uppercase tracking-widest hover:bg-primary hover:text-black transition-colors"
                 >
@@ -101,56 +168,99 @@ export default function ProfilePage() {
               </Form>
             )}
           </div>
-          <button 
-            onClick={handleLogout}
-            className="w-full h-12 border border-destructive text-destructive font-display font-bold uppercase tracking-widest hover:bg-destructive hover:text-black transition-colors"
-          >
-            LOGOUT
-          </button>
         </div>
-        
-        <div className="lg:col-span-2">
-          <div className="bg-card p-6 border border-border">
-            <div className="flex justify-between items-center mb-6 border-b border-border pb-4">
-              <h2 className="font-display text-2xl uppercase tracking-wider text-white">RECENT ORDERS</h2>
-              <Link href="/my-orders" className="text-sm text-primary hover:text-white transition-colors uppercase tracking-widest">View All</Link>
+      )}
+
+      {/* Orders Tab */}
+      {activeTab === 'orders' && (
+        <div>
+          {orders.length === 0 ? (
+            <div className="text-center py-20 border border-border bg-card">
+              <Package size={40} className="text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground mb-4">You haven't placed any orders yet.</p>
+              <Link href="/shop" className="text-primary hover:text-white uppercase tracking-widest text-sm border-b border-primary transition-colors">
+                Start Shopping
+              </Link>
             </div>
-            
-            {orders.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">No orders yet.</p>
-                <Link href="/shop" className="text-primary hover:text-white uppercase tracking-widest text-sm border-b border-primary">Start Shopping</Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {orders.map(order => (
-                  <div key={order.id} className="border border-border p-4 flex flex-col md:flex-row justify-between md:items-center gap-4 bg-background">
-                    <div>
-                      <p className="font-display text-lg text-white">{order.id}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <span className={`px-2 py-1 text-xs uppercase tracking-widest font-bold ${
-                        order.status === 'Delivered' ? 'bg-green-500/20 text-green-500' :
-                        order.status === 'Cancelled' ? 'bg-red-500/20 text-red-500' :
-                        order.status === 'Confirmed' ? 'bg-blue-500/20 text-blue-500' :
-                        order.status === 'Out for Delivery' ? 'bg-purple-500/20 text-purple-500' :
-                        'bg-yellow-500/20 text-yellow-500'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </div>
+          ) : (
+            <div className="space-y-3">
+              {orders.map(order => (
+                <div key={order.id} className="border border-border p-5 bg-card flex flex-col md:flex-row justify-between md:items-center gap-4">
+                  <div>
+                    <p className="font-display text-lg text-white">{order.id}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{new Date(order.createdAt).toLocaleDateString('en-GB')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{order.items.length} item{order.items.length !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`px-3 py-1 text-xs uppercase tracking-widest font-bold ${statusClass(order.status)}`}>
+                      {order.status}
+                    </span>
                     <div className="text-right">
                       <p className="font-bold text-white">{order.total} EGP</p>
-                      <Link href={`/orders/${order.id}`} className="text-xs text-primary hover:text-white uppercase tracking-widest mt-1 inline-block">View Details</Link>
+                      <Link href={`/orders/${order.id}`} className="text-xs text-primary hover:text-white uppercase tracking-widest mt-1 inline-block transition-colors">
+                        View Details →
+                      </Link>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notifications' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-muted-foreground text-sm">{notifications.length} notification{notifications.length !== 1 ? 's' : ''}</p>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                className="text-xs uppercase tracking-widest text-primary hover:text-white transition-colors"
+              >
+                Mark all as read
+              </button>
             )}
           </div>
+
+          {notifications.length === 0 ? (
+            <div className="text-center py-20 border border-border bg-card">
+              <BellOff size={40} className="text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No notifications yet.</p>
+              <p className="text-xs text-muted-foreground mt-2">Order status updates will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.map(notif => (
+                <div
+                  key={notif.id}
+                  className={`border p-4 flex items-start gap-4 transition-colors cursor-pointer ${
+                    notif.read
+                      ? 'border-border bg-card/50 opacity-70'
+                      : 'border-primary/30 bg-primary/5'
+                  }`}
+                  onClick={() => !notif.read && handleMarkRead(notif.id)}
+                >
+                  <div className={`mt-0.5 flex-shrink-0 w-2 h-2 rounded-none mt-2 ${notif.read ? 'bg-muted-foreground' : 'bg-primary'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm">{notif.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(notif.createdAt).toLocaleString('en-GB', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                  {!notif.read && (
+                    <span className="flex-shrink-0 text-[10px] uppercase tracking-widest text-primary font-bold">NEW</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

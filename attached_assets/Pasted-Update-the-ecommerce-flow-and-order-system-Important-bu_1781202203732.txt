@@ -1,0 +1,103 @@
+Update the ecommerce flow and order system.
+
+Important business rule:
+Customers must be logged in before they can add to cart, buy, or place an order.
+
+1. Add to Cart protection:
+- If user clicks Add to Cart while not logged in, redirect to /login.
+- After login, redirect them back to the product page.
+- Do not allow guest cart checkout.
+
+2. Checkout protection:
+- Checkout page must require login.
+- If not logged in, redirect to /login.
+- Customer must add delivery address before placing order.
+
+3. Address requirement:
+Before placing order, require:
+Full name
+Phone number
+Governorate
+City / Area
+Full address
+Optional notes
+
+Save address to customer profile/localStorage or database.
+
+4. Order placement:
+When customer clicks Place Order:
+- Do NOT open WhatsApp.
+- Do NOT redirect to WhatsApp.
+- Save the order inside the system.
+- Show success message: “Order placed successfully. We’ll contact you to confirm.”
+- Order should appear in Admin Dashboard immediately.
+
+5. Admin orders:
+Admin dashboard must receive all new orders.
+Admin Orders page should show:
+Order ID
+Customer name
+Phone
+Governorate
+City/Area
+Full address
+Products
+Sizes
+Colors
+Quantity
+Subtotal
+Shipping
+Total EGP
+Payment method: Cash on Delivery
+Order notes
+Order status
+Date
+
+6. Admin order status:
+Admin can update status:
+Pending
+Confirmed
+Preparing
+Out for Delivery
+Delivered
+Cancelled
+
+7. Customer notifications:
+When admin changes order status, show notification to the customer inside their account.
+Add notifications page or notification dropdown.
+Examples:
+- Your order has been confirmed.
+- Your order is being prepared.
+- Your order is out for delivery.
+- Your order has been delivered.
+- Your order was cancelled.
+
+8. Customer account:
+Profile page should show:
+Personal info
+Saved address
+My Orders
+Notifications
+Logout
+
+My Orders should show live status updates from admin.
+
+9. WhatsApp rule:
+Only the Custom Design page should use WhatsApp.
+Custom Design button should open WhatsApp to:
++201220172714
+
+WhatsApp message:
+Hello S! Wear, I want to create a custom design.
+Product type:
+Size:
+Color:
+Design idea:
+
+10. Remove WhatsApp from normal product checkout.
+Product pages may show “Need help? Contact us” but checkout/orders must stay inside the website.
+
+Use Cash on Delivery only.
+Use EGP only.
+Do not add online payment.
+Keep the same dark/neon S! Wear design.

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { products } from "@/data/products";
 import { useCart } from "@/context/CartContext";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 import { Minus, Plus } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,8 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 export default function ProductDetailPage() {
   const { id } = useParams();
   const { addItem } = useCart();
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   const product = products.find(p => p.id === id);
@@ -32,23 +34,16 @@ export default function ProductDetailPage() {
   }
 
   const handleAddToCart = () => {
-    addItem({
-      product,
-      selectedSize,
-      selectedColor,
-      quantity
-    });
+    if (!user) {
+      setLocation(`/login?redirect=/shop/${product.id}`);
+      return;
+    }
+    addItem({ product, selectedSize, selectedColor, quantity });
     toast({
       title: "ADDED TO CART",
       description: `${quantity}x ${product.name} (${selectedSize}, ${selectedColor})`,
       className: "bg-primary text-black border-none rounded-none font-display uppercase tracking-wider",
     });
-  };
-
-  const handleWhatsAppOrder = () => {
-    const total = product.price * quantity;
-    const message = `Hello! I'd like to order: ${product.name}, Size: ${selectedSize}, Color: ${selectedColor}, Qty: ${quantity}, Price: ${total} EGP`;
-    window.open(`https://wa.me/201220172714?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   return (
@@ -131,18 +126,18 @@ export default function ProductDetailPage() {
           <div className="flex flex-col gap-4 mb-12">
             <motion.button
               whileTap={{ scale: 0.97 }}
+              data-testid="btn-add-to-cart"
               onClick={handleAddToCart}
               className="w-full h-14 bg-primary text-black font-display uppercase font-black tracking-widest text-lg hover:bg-white transition-colors"
             >
-              ADD TO CART
+              {user ? "ADD TO CART" : "SIGN IN TO ORDER"}
             </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={handleWhatsAppOrder}
-              className="w-full h-14 bg-transparent border-2 border-white text-white font-display uppercase font-black tracking-widest text-lg hover:bg-white hover:text-black transition-colors"
-            >
-              ORDER VIA WHATSAPP
-            </motion.button>
+            <p className="text-center text-xs text-muted-foreground uppercase tracking-widest">
+              Cash on Delivery only &mdash;{" "}
+              <Link href="/contact" className="text-primary hover:text-white transition-colors">
+                Need help? Contact us
+              </Link>
+            </p>
           </div>
           
           <Accordion type="single" collapsible className="w-full">
