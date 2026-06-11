@@ -3,7 +3,9 @@ import { useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { getProducts, getCategories } from "@/hooks/useProducts";
 import { ProductGrid } from "@/components/products/ProductGrid";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+
+const FIXED_TABS = ["All", "T-Shirts", "Shirts", "Pants", "Custom Design"];
 
 export default function ShopPage() {
   const searchString = useSearch();
@@ -12,16 +14,20 @@ export default function ShopPage() {
 
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState("newest");
-  const [sortOpen, setSortOpen] = useState(false);
 
   const allProducts = useMemo(() => getProducts(), []);
-  const dynamicCategories = useMemo(() => ["All", ...getCategories()], []);
+  const dynamicCategories = useMemo(() => {
+    const cats = getCategories();
+    const tabs = ["All", ...cats.filter(c => c !== "Hoodies")];
+    const extra = tabs.filter(t => !FIXED_TABS.includes(t));
+    const base = FIXED_TABS.filter(t => t === "All" || cats.includes(t));
+    return [...new Set([...base, ...extra])];
+  }, []);
 
   const filteredProducts = useMemo(() => {
-    let result = allProducts;
-    if (category !== "All") {
-      result = result.filter(p => p.category === category);
-    }
+    let result = category === "All"
+      ? allProducts.filter(p => p.category !== "Hoodies")
+      : allProducts.filter(p => p.category === category);
     if (sort === "price-low") {
       result = [...result].sort((a, b) => a.price - b.price);
     } else if (sort === "price-high") {
@@ -32,96 +38,75 @@ export default function ShopPage() {
     return result;
   }, [allProducts, category, sort]);
 
-  const sortLabels: Record<string, string> = {
-    newest: "Newest",
-    "price-low": "Price ↑",
-    "price-high": "Price ↓",
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="max-w-[1280px] mx-auto px-4 py-8 md:py-12"
+      className="min-h-screen bg-black"
     >
-      <h1 className="font-display font-black uppercase text-white mb-6 md:mb-10"
-        style={{ fontSize: "clamp(2.2rem, 8vw, 5rem)", lineHeight: 0.92 }}>
-        SHOP ALL
-      </h1>
+      <div className="max-w-[1280px] mx-auto px-5 pt-6 pb-12 md:pt-10">
 
-      {/* Category tabs — horizontal scroll on mobile */}
-      <div className="mb-4">
-        <div className="-mx-4 px-4 overflow-x-auto">
-          <div className="flex gap-2 pb-2 min-w-max md:min-w-0 md:flex-wrap">
-            {dynamicCategories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`flex-shrink-0 h-9 px-4 text-xs font-display font-bold uppercase tracking-widest border transition-colors whitespace-nowrap ${
-                  category === cat
-                    ? "bg-primary text-black border-primary"
-                    : "bg-transparent text-muted-foreground border-border hover:text-white hover:border-white/30"
-                }`}
-              >
-                {cat}
-                {cat !== "All" && (
-                  <span className="ml-1.5 opacity-60 font-normal">
-                    ({allProducts.filter(p => p.category === cat).length})
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Sort bar */}
-      <div className="flex items-center justify-between mb-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest">
-          {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}
-        </p>
-
-        {/* Mobile: button toggle */}
-        <div className="relative md:hidden">
-          <button
-            onClick={() => setSortOpen(!sortOpen)}
-            className="flex items-center gap-2 h-9 px-4 border border-border text-white text-xs font-display font-bold uppercase tracking-widest"
+        {/* Page header */}
+        <div className="mb-5">
+          <h1
+            className="font-display font-black uppercase text-white leading-none"
+            style={{ fontSize: "clamp(1.8rem, 7vw, 4.5rem)" }}
           >
-            <SlidersHorizontal size={14} />
-            {sortLabels[sort]}
-          </button>
-          {sortOpen && (
-            <div className="absolute right-0 top-full mt-1 bg-card border border-border z-20 min-w-[140px]">
-              {Object.entries(sortLabels).map(([val, label]) => (
+            SHOP ALL
+          </h1>
+          <p className="text-[#39FF14]/70 text-xs font-display uppercase tracking-widest mt-1">
+            Pick your fit. Built for the street.
+          </p>
+        </div>
+
+        {/* Category tabs — horizontal scroll */}
+        <div className="-mx-5 px-5 overflow-x-auto scrollbar-none mb-3">
+          <div className="flex gap-2 pb-1 min-w-max">
+            {dynamicCategories.map(cat => {
+              const isActive = category === cat;
+              return (
                 <button
-                  key={val}
-                  onClick={() => { setSort(val); setSortOpen(false); }}
-                  className={`block w-full text-left px-4 py-3 text-xs uppercase tracking-widest font-display font-bold transition-colors ${
-                    sort === val ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-white hover:bg-white/5"
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`flex-shrink-0 px-4 py-2 text-[11px] font-display font-bold uppercase tracking-widest transition-all duration-200 whitespace-nowrap rounded-sm ${
+                    isActive
+                      ? "bg-[#39FF14] text-black"
+                      : "bg-[#111] text-zinc-400 hover:text-white hover:bg-[#1a1a1a]"
                   }`}
                 >
-                  {label}
+                  {cat}
                 </button>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Desktop: inline select */}
-        <select
-          className="hidden md:block bg-card border border-border text-white px-4 h-9 uppercase tracking-wider text-xs appearance-none outline-none focus:border-primary font-display font-bold cursor-pointer"
-          value={sort}
-          onChange={e => setSort(e.target.value)}
-        >
-          <option value="newest">Newest</option>
-          <option value="price-low">Price: Low to High</option>
-          <option value="price-high">Price: High to Low</option>
-        </select>
-      </div>
+        {/* Sort row */}
+        <div className="flex items-center justify-between mb-5 py-2 border-b border-zinc-800">
+          <span className="text-[11px] text-zinc-500 uppercase tracking-widest">
+            {filteredProducts.length} item{filteredProducts.length !== 1 ? "s" : ""}
+          </span>
+          <div className="relative flex items-center gap-1">
+            <span className="text-[11px] text-zinc-500 uppercase tracking-widest">Sort:</span>
+            <div className="relative">
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value)}
+                className="appearance-none bg-transparent text-white text-[11px] font-display font-bold uppercase tracking-widest pr-5 pl-1 py-1 outline-none cursor-pointer border-none"
+              >
+                <option value="newest" className="bg-black">Newest</option>
+                <option value="price-low" className="bg-black">Price ↑</option>
+                <option value="price-high" className="bg-black">Price ↓</option>
+              </select>
+              <ChevronDown size={11} className="absolute right-0 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+            </div>
+          </div>
+        </div>
 
-      {/* Grid */}
-      <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
+        {/* Product grid */}
+        <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
+      </div>
     </motion.div>
   );
 }

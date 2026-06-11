@@ -1,7 +1,7 @@
 import { defaultProducts, defaultCategories, Product } from "@/data/products";
 
-const PRODUCTS_VERSION = "v2";
-const CATEGORIES_VERSION = "v1";
+const PRODUCTS_VERSION = "v3";
+const CATEGORIES_VERSION = "v2";
 
 export function getProducts(): Product[] {
   try {
@@ -39,7 +39,6 @@ export function saveCategories(categories: string[]): void {
   localStorage.setItem("swear_categories_version", CATEGORIES_VERSION);
 }
 
-/** Maps category name → image URL or base64 data URI */
 export function getCategoryImages(): Record<string, string> {
   try {
     const stored = localStorage.getItem("swear_category_images");

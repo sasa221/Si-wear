@@ -15,7 +15,6 @@ export const defaultCategories: string[] = [
   "T-Shirts",
   "Shirts",
   "Pants",
-  "Hoodies",
   "Custom Design",
 ];
 
@@ -115,39 +114,6 @@ export const defaultProducts: Product[] = [
       "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=600&h=750&fit=crop",
       "https://images.unsplash.com/photo-1503341504253-dff4815485f1?w=600&h=750&fit=crop",
     ],
-  },
-  {
-    id: "7",
-    name: "Essential Heavyweight Hoodie",
-    price: 599,
-    category: "Hoodies",
-    sizes: ["S", "M", "L", "XL", "2XL"],
-    colors: ["Black", "Charcoal", "White"],
-    description:
-      "400GSM heavyweight cotton-fleece. Double-lined hood, kangaroo front pocket, ribbed cuffs. Brushed fleece interior for warmth without bulk. The S! Wear year-round essential.",
-    images: [
-      "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop",
-      "https://images.unsplash.com/photo-1605518216938-7c31b7b14ad0?w=600&h=750&fit=crop",
-      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&h=750&fit=crop",
-    ],
-    isNew: true,
-    isBestSeller: true,
-  },
-  {
-    id: "8",
-    name: "Quarter-Zip Sweatshirt",
-    price: 549,
-    category: "Hoodies",
-    sizes: ["S", "M", "L", "XL", "2XL"],
-    colors: ["Black", "Cream", "Slate Grey"],
-    description:
-      "350GSM cotton-poly blend. Quarter-zip closure with a brushed fleece interior. Clean minimal silhouette with no logo — just premium construction and a perfect fit.",
-    images: [
-      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&h=750&fit=crop",
-      "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop",
-      "https://images.unsplash.com/photo-1605518216938-7c31b7b14ad0?w=600&h=750&fit=crop",
-    ],
-    isNew: true,
   },
 ];
 
