@@ -1,9 +1,24 @@
 import { useAuth } from "@/context/AuthContext";
 import { useLocation, useParams, Link } from "wouter";
-import { useEffect, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { Product } from "@/data/products";
-import { getProducts, saveProducts, getCategories } from "@/hooks/useProducts";
+import {
+  ALLOWED_CATEGORIES,
+  PRODUCT_SIZES,
+  Product,
+  ProductStatus,
+  ProductVariant,
+  createProductId,
+  createVariantId,
+  getProductColors,
+  getProductSizes,
+  isUuid,
+  normalizeVariantOption,
+  slugify,
+} from "@/data/products";
+import { getProductsAsync, saveProducts } from "@/hooks/useProducts";
+import { getCategoryNamesAsync } from "@/lib/categoryService";
+import { getSupabaseAccessToken, supabaseConfigured, uploadSupabaseStorageObject } from "@/lib/supabase";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,22 +26,132 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, X, Link as LinkIcon, GripVertical, ImagePlus, AlertCircle } from "lucide-react";
+import { ArrowLeft, Upload, X, Link as LinkIcon, ImagePlus, AlertCircle, Check } from "lucide-react";
+import { useFallbackImage } from "@/lib/images";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  category: z.string().min(1, "Category is required"),
+  category: z.string().refine(
+    value => (ALLOWED_CATEGORIES as readonly string[]).includes(value),
+    "Choose an allowed category"
+  ),
   price: z.coerce.number().min(1, "Price must be positive"),
+  status: z.enum(["active", "draft"]),
   description: z.string().min(1, "Description is required"),
-  sizes: z.array(z.string()).min(1, "Select at least one size"),
-  colors: z.string().min(1, "At least one color is required"),
   isNew: z.boolean(),
   isBestSeller: z.boolean(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
+type StockMap = Record<string, number>;
 
-const AVAILABLE_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+function stockKey(color: string, size: string): string {
+  return `${color.toLowerCase()}::${size}`;
+}
+
+function cleanColor(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function createLocalProductId(name: string): string {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return createProductId(`${name}-${Date.now()}`);
+}
+
+function buildSku(slug: string, color: string, size: string): string {
+  return `${slug}-${slugify(color)}-${slugify(size)}`.toUpperCase();
+}
+
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
+  return base ? `${base}/api${path}` : `/api${path}`;
+}
+
+async function readApiPayload(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) as Record<string, unknown> : {};
+  } catch {
+    return { message: text };
+  }
+}
+
+async function syncProductToSupabase(product: Product, previousProduct?: Product): Promise<string[]> {
+  if (!supabaseConfigured) return [];
+
+  if (!isUuid(product.id)) {
+    throw new Error("Product sync needs a UUID product id. Re-save this product after migration.");
+  }
+
+  const variantRows = product.variants.map(variant => ({
+    id: variant.id,
+    product_id: product.id,
+    size: variant.size,
+    color: variant.color,
+    stock: variant.stock,
+    sku: variant.sku ?? buildSku(product.slug, variant.color, variant.size),
+    active: variant.active,
+    created_at: variant.createdAt,
+  }));
+
+  const activeVariantIds = new Set(product.variants.map(variant => variant.id));
+  const removedVariantIds = previousProduct?.variants
+    .filter(variant => !activeVariantIds.has(variant.id) && isUuid(variant.id))
+    .map(variant => variant.id) ?? [];
+
+  const token = getSupabaseAccessToken();
+  if (!token) {
+    throw new Error("Admin login is required to save products. Sign in to the admin panel again.");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(apiUrl("/admin/products/sync"), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        product: {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          category: product.category,
+          price_egp: product.price,
+          description: product.description,
+          images: product.images,
+          status: product.status,
+          is_new: !!product.isNew,
+          is_best_seller: !!product.isBestSeller,
+        },
+        variants: variantRows,
+        removedVariantIds,
+      }),
+    });
+  } catch {
+    throw new Error("Product API is not reachable. Start the API server and try again.");
+  }
+
+  const payload = await readApiPayload(response);
+  if (!response.ok) {
+    throw new Error(
+      typeof payload.message === "string"
+        ? payload.message
+        : typeof payload.error === "string"
+          ? payload.error
+          : "Product sync failed."
+    );
+  }
+
+  if (payload.ok !== true) {
+    throw new Error("Product sync failed.");
+  }
+
+  return Array.isArray(payload.warnings)
+    ? payload.warnings.filter((warning): warning is string => typeof warning === "string")
+    : [];
+}
 
 async function compressImage(file: File): Promise<string> {
   return new Promise((resolve) => {
@@ -52,6 +177,12 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
+function storagePathForFile(file: File): string {
+  const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
+  const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `products/${id}.${extension}`;
+}
+
 export default function ProductFormPage() {
   const { isAdmin } = useAuth();
   const [, setLocation] = useLocation();
@@ -63,51 +194,80 @@ export default function ProductFormPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(["S", "M", "L"]);
+  const [colors, setColors] = useState<string[]>(["Black"]);
+  const [colorInput, setColorInput] = useState("");
+  const [stockByVariant, setStockByVariant] = useState<StockMap>({});
   const [imageError, setImageError] = useState("");
   const [urlInput, setUrlInput] = useState("");
   const [urlMode, setUrlMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
-      category: "",
+      category: "T-Shirts",
       price: 0,
+      status: "active",
       description: "",
-      sizes: ["M", "L"],
-      colors: "",
       isNew: false,
       isBestSeller: false,
     },
   });
 
+  const existingProduct = useMemo(
+    () => products.find(product => product.id === params.id),
+    [params.id, products]
+  );
+
   useEffect(() => {
     if (!isAdmin) { setLocation("/admin/login"); return; }
-    const stored = getProducts();
-    const cats = getCategories();
-    setProducts(stored);
-    setCategories(cats);
+    let cancelled = false;
 
-    if (isEdit) {
-      const prod = stored.find((p: Product) => p.id === params.id);
-      if (prod) {
-        form.reset({
-          name: prod.name,
-          category: prod.category,
-          price: prod.price,
-          description: prod.description,
-          sizes: prod.sizes,
-          colors: prod.colors.join(", "),
-          isNew: !!prod.isNew,
-          isBestSeller: !!prod.isBestSeller,
+    Promise.all([getCategoryNamesAsync(true), getProductsAsync({ admin: true })])
+      .then(([cats, stored]) => {
+        if (cancelled) return;
+        setCategories(cats);
+        setProducts(stored);
+
+        if (isEdit) {
+          const prod = stored.find((p: Product) => p.id === params.id);
+          if (prod) {
+            form.reset({
+              name: prod.name,
+              category: prod.category,
+              price: prod.price,
+              status: prod.status,
+              description: prod.description,
+              isNew: !!prod.isNew,
+              isBestSeller: !!prod.isBestSeller,
+            });
+            setImages(prod.images);
+            setSelectedSizes(getProductSizes(prod));
+            setColors(getProductColors(prod));
+            setStockByVariant(
+              prod.variants.reduce<StockMap>((acc, variant) => {
+                acc[stockKey(variant.color, variant.size)] = variant.stock;
+                return acc;
+              }, {})
+            );
+          }
+        } else {
+          form.setValue("category", cats[0] || "T-Shirts");
+        }
+      })
+      .catch(err => {
+        toast({
+          title: "Failed to load products",
+          description: err instanceof Error ? err.message : "Please try again.",
+          variant: "destructive",
         });
-        setImages(prod.images);
-      }
-    } else {
-      form.setValue("category", cats[0] || "");
-    }
+      });
+
+    return () => { cancelled = true; };
   }, [isAdmin, setLocation, isEdit, params.id, form]);
 
   if (!isAdmin) return null;
@@ -117,10 +277,26 @@ export default function ProductFormPage() {
     setUploading(true);
     setImageError("");
     try {
-      const results = await Promise.all(Array.from(files).map(compressImage));
+      const results = await Promise.all(
+        Array.from(files).map(file => {
+          if (supabaseConfigured) {
+            return uploadSupabaseStorageObject(
+              "product-images",
+              storagePathForFile(file),
+              file,
+              file.type || "image/jpeg"
+            );
+          }
+          return compressImage(file);
+        })
+      );
       setImages(prev => [...prev, ...results]);
-    } catch {
-      setImageError("Failed to process one or more images.");
+    } catch (err) {
+      setImageError(
+        supabaseConfigured
+          ? `Storage upload failed: ${err instanceof Error ? err.message : "Use Add by URL fallback."}`
+          : "Failed to process one or more images."
+      );
     } finally {
       setUploading(false);
     }
@@ -153,20 +329,87 @@ export default function ProductFormPage() {
     });
   };
 
-  const onSubmit = (data: ProductFormValues) => {
+  const toggleSize = (size: string) => {
+    setSelectedSizes(prev => (
+      prev.includes(size)
+        ? prev.filter(item => item !== size)
+        : [...prev, size].sort((a, b) => PRODUCT_SIZES.indexOf(a as typeof PRODUCT_SIZES[number]) - PRODUCT_SIZES.indexOf(b as typeof PRODUCT_SIZES[number]))
+    ));
+  };
+
+  const addColor = () => {
+    const nextColor = cleanColor(colorInput);
+    if (!nextColor) return;
+    if (colors.some(color => color.toLowerCase() === nextColor.toLowerCase())) {
+      toast({ title: "Color already exists", variant: "destructive" });
+      return;
+    }
+    setColors(prev => [...prev, nextColor]);
+    setColorInput("");
+  };
+
+  const removeColor = (color: string) => {
+    setColors(prev => prev.filter(item => item !== color));
+  };
+
+  const setStock = (color: string, size: string, value: string) => {
+    const stock = Math.max(0, Number(value) || 0);
+    setStockByVariant(prev => ({ ...prev, [stockKey(color, size)]: stock }));
+  };
+
+  const getStock = (color: string, size: string) => stockByVariant[stockKey(color, size)] ?? 0;
+
+  const onSubmit = async (data: ProductFormValues) => {
     if (images.length === 0) {
       setImageError("Add at least one product image.");
       return;
     }
 
-    const colors = data.colors.split(",").map(s => s.trim()).filter(Boolean);
+    if (selectedSizes.length === 0) {
+      toast({ title: "Select at least one size", variant: "destructive" });
+      return;
+    }
+
+    if (colors.length === 0) {
+      toast({ title: "Add at least one color", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    const productId = existingProduct?.id ?? createLocalProductId(data.name);
+    const slug = existingProduct?.slug || slugify(data.name);
+    const now = new Date().toISOString();
+
+    const variants: ProductVariant[] = colors.flatMap(color =>
+      selectedSizes.map(size => {
+        const previousVariant = existingProduct?.variants.find(
+          variant =>
+            normalizeVariantOption(variant.color) === normalizeVariantOption(color) &&
+            normalizeVariantOption(variant.size) === normalizeVariantOption(size)
+        );
+        return {
+          id: previousVariant?.id || createVariantId(productId, color, size),
+          productId,
+          size,
+          color,
+          stock: getStock(color, size),
+          sku: previousVariant?.sku || buildSku(slug, color, size),
+          active: true,
+          createdAt: previousVariant?.createdAt || now,
+        };
+      })
+    );
+
     const newProduct: Product = {
-      id: isEdit ? params.id! : "prod-" + Date.now(),
+      id: productId,
       name: data.name,
+      slug,
       category: data.category,
       price: data.price,
       description: data.description,
-      sizes: data.sizes,
+      status: data.status as ProductStatus,
+      variants,
+      sizes: selectedSizes,
       colors,
       images,
       isNew: data.isNew,
@@ -182,13 +425,27 @@ export default function ProductFormPage() {
     }
 
     try {
+      let warnings: string[] = [];
+      if (supabaseConfigured) {
+        warnings = await syncProductToSupabase(newProduct, existingProduct);
+      }
       saveProducts(updated);
-    } catch {
-      toast({ title: "Storage full", description: "Images are too large. Try fewer or smaller photos.", variant: "destructive" });
+      toast({
+        title: isEdit ? "Product updated successfully" : "Product created successfully",
+        description: warnings[0],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Images are too large or Supabase sync failed.";
+      toast({
+        title: isEdit ? "Failed to update product" : "Failed to create product",
+        description: message,
+        variant: "destructive",
+      });
+      setSaving(false);
       return;
     }
 
-    toast({ title: isEdit ? "Product updated" : "Product created" });
+    setSaving(false);
     setLocation("/admin/products");
   };
 
@@ -202,16 +459,14 @@ export default function ProductFormPage() {
         {isEdit ? "EDIT PRODUCT" : "NEW PRODUCT"}
       </h1>
 
-      <div className="bg-card border border-border p-4 sm:p-6 max-w-4xl">
+      <div className="bg-card border border-border p-4 sm:p-6 max-w-5xl">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-
-            {/* Name + Price + Category */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Product Name</FormLabel>
-                  <FormControl><Input className="bg-background rounded-none" placeholder="Shadow Oversize Tee" {...field} /></FormControl>
+                  <FormControl><Input className="bg-background rounded-none" placeholder="Oversized Heavy Cotton T-Shirt" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -220,16 +475,17 @@ export default function ProductFormPage() {
                 <FormField control={form.control} name="price" render={({ field }) => (
                   <FormItem>
                     <FormLabel className="uppercase text-xs tracking-widest">Price (EGP)</FormLabel>
-                    <FormControl><Input type="number" className="bg-background rounded-none" {...field} /></FormControl>
+                    <FormControl><Input type="number" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={form.control} name="category" render={({ field }) => (
+                <FormField control={form.control} name="status" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs tracking-widest">Category</FormLabel>
+                    <FormLabel className="uppercase text-xs tracking-widest">Status</FormLabel>
                     <FormControl>
-                      <select className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" {...field}>
-                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      <select className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" style={{ fontSize: "16px" }} {...field}>
+                        <option value="active">Active</option>
+                        <option value="draft">Draft</option>
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -238,7 +494,18 @@ export default function ProductFormPage() {
               </div>
             </div>
 
-            {/* Description */}
+            <FormField control={form.control} name="category" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="uppercase text-xs tracking-widest">Category</FormLabel>
+                <FormControl>
+                  <select className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" style={{ fontSize: "16px" }} {...field}>
+                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem>
                 <FormLabel className="uppercase text-xs tracking-widest">Description</FormLabel>
@@ -247,7 +514,6 @@ export default function ProductFormPage() {
               </FormItem>
             )} />
 
-            {/* ── Images Section ── */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <label className="uppercase text-xs tracking-widest text-muted-foreground font-medium">
@@ -266,7 +532,6 @@ export default function ProductFormPage() {
                 </button>
               </div>
 
-              {/* URL input */}
               {urlMode && (
                 <div className="flex gap-2 mb-3">
                   <input
@@ -276,6 +541,7 @@ export default function ProductFormPage() {
                     value={urlInput}
                     onChange={e => { setUrlInput(e.target.value); setImageError(""); }}
                     onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddUrl())}
+                    style={{ fontSize: "16px" }}
                   />
                   <button
                     type="button"
@@ -287,7 +553,6 @@ export default function ProductFormPage() {
                 </div>
               )}
 
-              {/* Drop zone */}
               <div
                 className={`relative border-2 border-dashed transition-colors rounded-none ${
                   dragOver
@@ -305,7 +570,7 @@ export default function ProductFormPage() {
                   accept="image/*"
                   multiple
                   className="sr-only"
-                  onChange={e => handleFiles(e.target.files)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
                 />
 
                 {images.length === 0 ? (
@@ -313,7 +578,7 @@ export default function ProductFormPage() {
                     <ImagePlus size={36} className="text-muted-foreground" />
                     <div className="text-center">
                       <p className="font-display uppercase tracking-widest text-white text-sm">Click or drag photos here</p>
-                      <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP • Compressed automatically</p>
+                      <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP. Compressed automatically</p>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Upload size={14} className="text-primary" />
@@ -322,17 +587,15 @@ export default function ProductFormPage() {
                   </div>
                 ) : (
                   <div className="p-3">
-                    {/* Existing images grid */}
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
                       {images.map((src, i) => (
                         <div key={i} className={`relative group border ${i === 0 ? "border-primary" : "border-border"}`}>
                           <div style={{ aspectRatio: "4/5" }}>
-                            <img src={src} alt={`Product image ${i + 1}`} className="w-full h-full object-cover" />
+                            <img src={src} alt={`Product image ${i + 1}`} className="w-full h-full object-cover" loading="lazy" onError={useFallbackImage} />
                           </div>
                           {i === 0 && (
                             <span className="absolute top-1 left-1 bg-primary text-black text-[9px] font-black px-1 py-0.5 uppercase">MAIN</span>
                           )}
-                          {/* Controls */}
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 pointer-events-none group-hover:pointer-events-auto">
                             <div className="flex gap-1">
                               {i > 0 && (
@@ -341,7 +604,9 @@ export default function ProductFormPage() {
                                   onClick={e => { e.stopPropagation(); moveImage(i, -1); }}
                                   className="w-6 h-6 bg-white/10 hover:bg-white/30 text-white flex items-center justify-center text-xs border border-white/20"
                                   title="Move left"
-                                >←</button>
+                                >
+                                  {"<"}
+                                </button>
                               )}
                               {i < images.length - 1 && (
                                 <button
@@ -349,7 +614,9 @@ export default function ProductFormPage() {
                                   onClick={e => { e.stopPropagation(); moveImage(i, 1); }}
                                   className="w-6 h-6 bg-white/10 hover:bg-white/30 text-white flex items-center justify-center text-xs border border-white/20"
                                   title="Move right"
-                                >→</button>
+                                >
+                                  {">"}
+                                </button>
                               )}
                             </div>
                             <button
@@ -364,7 +631,6 @@ export default function ProductFormPage() {
                         </div>
                       ))}
 
-                      {/* Add more — click area (doesn't trigger whole zone) */}
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
@@ -377,7 +643,7 @@ export default function ProductFormPage() {
                     </div>
 
                     <p className="text-xs text-muted-foreground text-center">
-                      {images.length} image{images.length !== 1 ? "s" : ""} • Click zone or "Add" to upload more
+                      {images.length} image{images.length !== 1 ? "s" : ""}. Click zone or Add to upload more
                     </p>
                   </div>
                 )}
@@ -386,7 +652,7 @@ export default function ProductFormPage() {
                   <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
                     <div className="text-center">
                       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                      <p className="text-xs text-primary font-display uppercase tracking-widest">Processing…</p>
+                      <p className="text-xs text-primary font-display uppercase tracking-widest">Processing...</p>
                     </div>
                   </div>
                 )}
@@ -399,50 +665,107 @@ export default function ProductFormPage() {
               )}
             </div>
 
-            {/* Sizes + Colors */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField control={form.control} name="sizes" render={() => (
-                <FormItem>
-                  <FormLabel className="uppercase text-xs tracking-widest mb-3 block">Available Sizes</FormLabel>
-                  <div className="flex flex-wrap gap-2">
-                    {AVAILABLE_SIZES.map(size => (
-                      <FormField key={size} control={form.control} name="sizes" render={({ field }) => (
-                        <label className={`cursor-pointer flex items-center justify-center w-12 h-10 border text-sm font-display uppercase transition-colors ${
-                          field.value?.includes(size)
-                            ? "bg-primary border-primary text-black"
-                            : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                        }`}>
-                          <input
-                            type="checkbox"
-                            className="sr-only"
-                            checked={field.value?.includes(size)}
-                            onChange={e => {
-                              const current = field.value || [];
-                              field.onChange(e.target.checked ? [...current, size] : current.filter(s => s !== size));
-                            }}
-                          />
-                          {size}
-                        </label>
-                      )} />
-                    ))}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )} />
+            <div className="border border-border p-4 sm:p-5 space-y-5 bg-background/30">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                <div>
+                  <h2 className="font-display text-lg uppercase tracking-widest text-white">Variant Inventory</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Pick sizes, add colors, then set stock for each size/color combo.</p>
+                </div>
+                <span className="text-xs uppercase tracking-widest text-primary">
+                  Total stock: {colors.reduce((sum, color) => sum + selectedSizes.reduce((inner, size) => inner + getStock(color, size), 0), 0)}
+                </span>
+              </div>
 
-              <FormField control={form.control} name="colors" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="uppercase text-xs tracking-widest">Colors (comma separated)</FormLabel>
-                  <FormControl>
-                    <Input className="bg-background rounded-none" placeholder="Black, White, Olive" {...field} />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">e.g. Black, White, Sage</p>
-                  <FormMessage />
-                </FormItem>
-              )} />
+              <div>
+                <p className="uppercase text-xs tracking-widest text-muted-foreground font-medium mb-2">Available Sizes</p>
+                <div className="flex flex-wrap gap-2">
+                  {PRODUCT_SIZES.map(size => (
+                    <button
+                      type="button"
+                      key={size}
+                      onClick={() => toggleSize(size)}
+                      className={`h-10 px-4 border font-display uppercase text-sm font-bold transition-colors ${
+                        selectedSizes.includes(size)
+                          ? "bg-primary border-primary text-black"
+                          : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-white"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="uppercase text-xs tracking-widest text-muted-foreground font-medium mb-2">Colors</p>
+                <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                  <Input
+                    value={colorInput}
+                    onChange={e => setColorInput(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addColor())}
+                    className="bg-background rounded-none border-border"
+                    placeholder="Black, White, Olive..."
+                    style={{ fontSize: "16px" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={addColor}
+                    className="h-10 px-5 bg-primary text-black font-display font-bold uppercase tracking-widest text-xs hover:bg-white transition-colors"
+                  >
+                    Add Color
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {colors.map(color => (
+                    <span key={color} className="inline-flex items-center gap-2 border border-border bg-card px-3 py-1.5 text-xs uppercase tracking-widest text-white">
+                      {color}
+                      <button type="button" onClick={() => removeColor(color)} className="text-muted-foreground hover:text-red-400">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {colors.length > 0 && selectedSizes.length > 0 ? (
+                <div className="overflow-x-auto border border-border">
+                  <table className="w-full min-w-[520px] text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border bg-card text-xs uppercase tracking-widest text-muted-foreground">
+                        <th className="py-3 px-3 font-normal">Color</th>
+                        {selectedSizes.map(size => (
+                          <th key={size} className="py-3 px-3 font-normal text-center">{size}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {colors.map(color => (
+                        <tr key={color} className="border-b border-border/50 last:border-0">
+                          <td className="py-3 px-3 text-white font-display uppercase tracking-widest text-xs">{color}</td>
+                          {selectedSizes.map(size => (
+                            <td key={`${color}-${size}`} className="py-2 px-2">
+                              <input
+                                type="number"
+                                min="0"
+                                value={getStock(color, size)}
+                                onChange={e => setStock(color, size, e.target.value)}
+                                className="h-10 w-20 mx-auto block bg-background border border-border px-2 text-center text-white outline-none focus:border-primary"
+                                style={{ fontSize: "16px" }}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="border border-primary/40 bg-primary/10 px-4 py-3 text-xs uppercase tracking-widest text-primary">
+                  Add at least one color and one size to build the stock matrix.
+                </div>
+              )}
             </div>
 
-            {/* Flags */}
             <div className="border border-border p-4 space-y-4">
               <p className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-2">Product Flags</p>
               <FormField control={form.control} name="isNew" render={({ field }) => (
@@ -453,11 +776,11 @@ export default function ProductFormPage() {
                       field.value ? "bg-primary border-primary" : "bg-background border-border group-hover:border-primary/50"
                     }`}
                   >
-                    {field.value && <span className="text-black text-xs font-black">✓</span>}
+                    {field.value && <Check size={13} className="text-black" />}
                   </div>
                   <div>
                     <p className="text-white text-sm font-bold uppercase tracking-widest">Mark as NEW</p>
-                    <p className="text-xs text-muted-foreground">Shows "NEW" badge and appears in Latest Drops on homepage</p>
+                    <p className="text-xs text-muted-foreground">Shows NEW badge and appears in Latest Drops on homepage</p>
                   </div>
                 </label>
               )} />
@@ -469,26 +792,28 @@ export default function ProductFormPage() {
                       field.value ? "bg-yellow-400 border-yellow-400" : "bg-background border-border group-hover:border-yellow-400/50"
                     }`}
                   >
-                    {field.value && <span className="text-black text-xs font-black">✓</span>}
+                    {field.value && <Check size={13} className="text-black" />}
                   </div>
                   <div>
                     <p className="text-white text-sm font-bold uppercase tracking-widest">Mark as BEST SELLER</p>
-                    <p className="text-xs text-muted-foreground">Shows "BEST SELLER" badge and appears in Best Sellers on homepage</p>
+                    <p className="text-xs text-muted-foreground">Shows BEST SELLER badge and appears in Best Sellers on homepage</p>
                   </div>
                 </label>
               )} />
             </div>
 
-            {/* Actions */}
             <div className="pt-6 border-t border-border flex flex-col sm:flex-row gap-4">
-              <button type="submit" className="h-12 px-8 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors">
-                {isEdit ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
+              <button
+                type="submit"
+                disabled={saving}
+                className="h-12 px-8 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {saving ? "SAVING..." : isEdit ? "UPDATE PRODUCT" : "SAVE PRODUCT"}
               </button>
               <Link href="/admin/products" className="flex items-center justify-center h-12 px-8 border border-border text-white font-display font-bold uppercase tracking-widest hover:bg-white/5 transition-colors">
                 CANCEL
               </Link>
             </div>
-
           </form>
         </Form>
       </div>

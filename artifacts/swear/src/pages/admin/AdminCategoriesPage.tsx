@@ -1,14 +1,20 @@
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "wouter";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
+import { getProductsAsync } from "@/hooks/useProducts";
+import { ALLOWED_CATEGORIES, slugify, type Product } from "@/data/products";
 import {
-  getCategories, saveCategories, getProducts,
-  getCategoryImages, saveCategoryImages,
-} from "@/hooks/useProducts";
+  getCategoriesAsync,
+  saveCategory,
+  saveCategoryImage,
+  setCategoryActive,
+  type CategoryRecord,
+} from "@/lib/categoryService";
+import { supabaseConfigured, uploadSupabaseStorageObject } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Plus, Tag, Upload, Link as LinkIcon, X, ImagePlus } from "lucide-react";
+import { Loader2, Plus, Tag, Upload, Link as LinkIcon, X, ImagePlus, Trash2 } from "lucide-react";
 
 async function compressImage(file: File): Promise<string> {
   return new Promise((resolve) => {
@@ -19,11 +25,17 @@ async function compressImage(file: File): Promise<string> {
         const MAX = 900;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
-          else { width = Math.round((width * MAX) / height); height = MAX; }
+          if (width > height) {
+            height = Math.round((height * MAX) / width);
+            width = MAX;
+          } else {
+            width = Math.round((width * MAX) / height);
+            height = MAX;
+          }
         }
         const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
+        canvas.width = width;
+        canvas.height = height;
         canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL("image/jpeg", 0.78));
       };
@@ -34,54 +46,87 @@ async function compressImage(file: File): Promise<string> {
 }
 
 const DEFAULT_IMAGES: Record<string, string> = {
-  "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
-  "Shirts":    "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=600&h=750&fit=crop&q=80",
-  "Pants":     "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=600&h=750&fit=crop&q=80",
-  "Hoodies":   "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop&q=80",
+  "T-Shirts": "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
+  "Shirts": "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=600&h=750&fit=crop&q=80",
+  "Pants": "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=600&h=750&fit=crop&q=80",
 };
 
-interface CategoryRowProps {
-  name: string;
-  productCount: number;
-  image: string;
-  onImageChange: (img: string) => void;
-  onDelete: () => void;
-  canDelete: boolean;
+function storagePathForCategory(file: File, category: CategoryRecord): string {
+  const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
+  const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `categories/${slugify(category.name)}-${id}.${extension}`;
 }
 
-function CategoryRow({ name, productCount, image, onImageChange, onDelete, canDelete }: CategoryRowProps) {
+interface CategoryRowProps {
+  category: CategoryRecord;
+  productCount: number;
+  image: string;
+  onFileChange: (file: File) => Promise<void>;
+  onImageChange: (img: string | null) => Promise<void>;
+  onSetActive: (active: boolean) => Promise<void>;
+  onSortChange: (sortOrder: number) => Promise<void>;
+  canDeactivate: boolean;
+}
+
+function CategoryRow({ category, productCount, image, onFileChange, onImageChange, onSetActive, onSortChange, canDeactivate }: CategoryRowProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [urlMode, setUrlMode] = useState(false);
   const [urlInput, setUrlInput] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sortSaving, setSortSaving] = useState(false);
+  const [sortDraft, setSortDraft] = useState(String(category.sortOrder || 1));
   const [urlError, setUrlError] = useState("");
+
+  useEffect(() => {
+    setSortDraft(String(category.sortOrder || 1));
+  }, [category.sortOrder]);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    setSaving(true);
     try {
-      const compressed = await compressImage(file);
-      onImageChange(compressed);
+      await onFileChange(file);
     } finally {
-      setUploading(false);
+      setSaving(false);
       e.target.value = "";
     }
   };
 
-  const handleUrl = () => {
+  const handleUrl = async () => {
     const url = urlInput.trim();
-    if (!/^https?:\/\/.+/.test(url)) { setUrlError("Enter a valid https:// URL"); return; }
-    onImageChange(url);
-    setUrlInput("");
-    setUrlError("");
-    setUrlMode(false);
+    if (!/^https?:\/\/.+/.test(url)) {
+      setUrlError("Enter a valid https:// URL");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onImageChange(url);
+      setUrlInput("");
+      setUrlError("");
+      setUrlMode(false);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const handleSortSave = async () => {
+    const nextSort = Math.max(1, Math.round(Number(sortDraft) || 1));
+    setSortDraft(String(nextSort));
+    if (nextSort === category.sortOrder) return;
+    setSortSaving(true);
+    try {
+      await onSortChange(nextSort);
+    } finally {
+      setSortSaving(false);
+    }
+  };
+
+  const canToggleActive = category.active ? canDeactivate : true;
 
   return (
     <div className="border-b border-border/50 last:border-0 p-4 sm:p-5 hover:bg-background/20 transition-colors">
       <div className="flex items-center gap-4">
-        {/* Image thumbnail */}
         <div
           className="relative flex-shrink-0 border border-border overflow-hidden cursor-pointer group"
           style={{ width: 64, height: 80 }}
@@ -90,7 +135,7 @@ function CategoryRow({ name, productCount, image, onImageChange, onDelete, canDe
         >
           {image ? (
             <>
-              <img src={image} alt={name} className="w-full h-full object-cover" />
+              <img src={image} alt={category.name} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Upload size={16} className="text-primary" />
               </div>
@@ -100,21 +145,47 @@ function CategoryRow({ name, productCount, image, onImageChange, onDelete, canDe
               <ImagePlus size={20} className="text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
           )}
-          {uploading && (
+          {saving && (
             <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <Loader2 size={18} className="animate-spin text-primary" />
             </div>
           )}
           <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={handleFile} />
         </div>
 
-        {/* Name + count */}
         <div className="flex-1 min-w-0">
-          <p className="font-display text-lg uppercase tracking-widest text-white leading-none">{name}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-display text-lg uppercase tracking-widest text-white leading-none">{category.name}</p>
+            {!category.active && (
+              <span className="border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-red-400">
+                Inactive
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
             {productCount} product{productCount !== 1 ? "s" : ""}
           </p>
-          {/* Photo controls */}
+
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Sort</span>
+            <input
+              type="number"
+              min={1}
+              className="h-8 w-20 bg-background border border-border px-2 text-xs text-white outline-none focus:border-primary transition-colors font-mono"
+              value={sortDraft}
+              onChange={event => setSortDraft(event.target.value)}
+              onKeyDown={event => event.key === "Enter" && handleSortSave()}
+            />
+            <button
+              type="button"
+              onClick={handleSortSave}
+              disabled={sortSaving || Number(sortDraft) === category.sortOrder}
+              className="h-8 px-3 border border-border text-[10px] uppercase tracking-widest text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+            >
+              {sortSaving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
+            </button>
+          </div>
+
           <div className="flex items-center gap-3 mt-2">
             <button
               type="button"
@@ -136,7 +207,7 @@ function CategoryRow({ name, productCount, image, onImageChange, onDelete, canDe
                 <span className="text-border">|</span>
                 <button
                   type="button"
-                  onClick={() => onImageChange("")}
+                  onClick={() => onImageChange(null)}
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-400 transition-colors uppercase tracking-widest"
                 >
                   <X size={11} /> Remove
@@ -145,7 +216,6 @@ function CategoryRow({ name, productCount, image, onImageChange, onDelete, canDe
             )}
           </div>
 
-          {/* URL input */}
           {urlMode && (
             <div className="mt-2 flex gap-2 max-w-sm">
               <input
@@ -168,18 +238,25 @@ function CategoryRow({ name, productCount, image, onImageChange, onDelete, canDe
           {urlError && <p className="text-xs text-red-400 mt-1">{urlError}</p>}
         </div>
 
-        {/* Delete */}
         <button
-          onClick={onDelete}
-          disabled={!canDelete}
-          title={!canDelete ? `${productCount} products use this category. Reassign first.` : "Delete category"}
+          onClick={() => onSetActive(!category.active)}
+          disabled={!canToggleActive || saving}
+          title={
+            category.active && !canDeactivate
+              ? `${productCount} products use this category. Reassign first.`
+              : category.active
+                ? "Deactivate category"
+                : "Activate category"
+          }
           className={`flex-shrink-0 w-9 h-9 flex items-center justify-center border transition-colors ${
-            !canDelete
+            !canToggleActive
               ? "border-border text-muted-foreground/30 cursor-not-allowed"
-              : "border-border text-muted-foreground hover:text-red-500 hover:border-red-500/40"
+              : category.active
+                ? "border-border text-muted-foreground hover:text-red-500 hover:border-red-500/40"
+                : "border-primary/50 text-primary hover:bg-primary hover:text-black"
           }`}
         >
-          <Trash2 size={15} />
+          {category.active ? <Trash2 size={15} /> : <Plus size={15} />}
         </button>
       </div>
     </div>
@@ -191,81 +268,170 @@ export default function AdminCategoriesPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [newCategory, setNewCategory] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [cats, prods] = await Promise.all([
+        getCategoriesAsync(true, true),
+        getProductsAsync({ admin: true }),
+      ]);
+      setCategories(cats);
+      setProducts(prods);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to load categories.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    if (!isAdmin) { setLocation("/admin/login"); return; }
-    setCategories(getCategories());
-    setCategoryImages(getCategoryImages());
-  }, [isAdmin, setLocation]);
+    if (!isAdmin) {
+      setLocation("/admin/login");
+      return;
+    }
+    loadData();
+  }, [isAdmin, setLocation, loadData]);
 
   if (!isAdmin) return null;
 
-  const getCount = (cat: string) => getProducts().filter(p => p.category === cat).length;
+  const getCount = (cat: string) => products.filter(product => product.category === cat).length;
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const trimmed = newCategory.trim();
     if (!trimmed) return;
-    if (categories.find(c => c.toLowerCase() === trimmed.toLowerCase())) {
-      toast({ title: "Category already exists", variant: "destructive" });
+    if (!(ALLOWED_CATEGORIES as readonly string[]).includes(trimmed)) {
+      toast({ title: "Category not allowed", description: `Use only: ${ALLOWED_CATEGORIES.join(", ")}`, variant: "destructive" });
       return;
     }
-    const updated = [...categories, trimmed];
-    setCategories(updated);
-    saveCategories(updated);
-    setNewCategory("");
-    toast({ title: "Category added", description: trimmed });
-  };
-
-  const handleDelete = (cat: string) => {
-    const count = getCount(cat);
-    if (count > 0) {
-      toast({ title: "Cannot delete", description: `${count} product${count !== 1 ? "s" : ""} still use this category. Reassign them first.`, variant: "destructive" });
+    const existing = categories.find(category => category.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      toast({
+        title: "Category already exists",
+        description: existing.active
+          ? "Edit the existing category row instead."
+          : "Activate the existing category row instead.",
+        variant: "destructive",
+      });
       return;
     }
-    const updated = categories.filter(c => c !== cat);
-    setCategories(updated);
-    saveCategories(updated);
-    // also remove its image entry
-    const imgs = { ...categoryImages };
-    delete imgs[cat];
-    setCategoryImages(imgs);
-    saveCategoryImages(imgs);
-    toast({ title: "Category deleted", description: cat });
-  };
 
-  const handleImageChange = (cat: string, img: string) => {
-    const updated = { ...categoryImages, [cat]: img };
-    if (!img) delete updated[cat];
-    setCategoryImages(updated);
+    setSaving(true);
     try {
-      saveCategoryImages(updated);
-      toast({ title: "Photo updated", description: cat });
-    } catch {
-      toast({ title: "Image too large", description: "Try a smaller file.", variant: "destructive" });
-      // rollback
-      setCategoryImages(categoryImages);
+      await saveCategory({
+        name: trimmed,
+        active: true,
+        sortOrder: (ALLOWED_CATEGORIES as readonly string[]).indexOf(trimmed) + 1,
+      });
+      setNewCategory("");
+      await loadData();
+      toast({ title: "Category saved", description: trimmed });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to save category.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getImage = (cat: string) =>
-    categoryImages[cat] || DEFAULT_IMAGES[cat] || "";
+  const handleSetActive = async (category: CategoryRecord, active: boolean) => {
+    const count = getCount(category.name);
+    if (!active && count > 0) {
+      toast({ title: "Cannot deactivate", description: `${count} product${count !== 1 ? "s" : ""} still use this category. Reassign them first.`, variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await setCategoryActive(category.id, active);
+      await loadData();
+      toast({ title: active ? "Category activated" : "Category deactivated", description: category.name });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update category.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSortChange = async (category: CategoryRecord, sortOrder: number) => {
+    setSaving(true);
+    try {
+      await saveCategory({
+        id: category.id,
+        name: category.name,
+        coverImageUrl: category.coverImageUrl,
+        active: category.active,
+        sortOrder,
+      });
+      await loadData();
+      toast({ title: "Sort updated", description: category.name });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update category sort.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleImageChange = async (category: CategoryRecord, img: string | null) => {
+    const previous = categories;
+    setCategories(prev => prev.map(item =>
+      item.id === category.id ? { ...item, coverImageUrl: img } : item
+    ));
+    try {
+      const updated = await saveCategoryImage(category.id, img);
+      setCategories(prev => prev.map(item => item.id === category.id ? updated : item));
+      toast({ title: "Photo updated", description: category.name });
+    } catch (err) {
+      setCategories(previous);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update category image.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFileChange = async (category: CategoryRecord, file: File) => {
+    const url = supabaseConfigured
+      ? await uploadSupabaseStorageObject("product-images", storagePathForCategory(file, category), file, file.type || "image/jpeg")
+      : await compressImage(file);
+    await handleImageChange(category, url);
+  };
+
+  const getImage = (category: CategoryRecord) =>
+    category.coverImageUrl || DEFAULT_IMAGES[category.name] || "";
 
   return (
     <AdminLayout>
       <h1 className="text-3xl md:text-5xl font-display font-black uppercase text-white mb-2">CATEGORIES</h1>
       <p className="text-muted-foreground text-sm mb-8 uppercase tracking-widest">
-        {categories.length} categor{categories.length !== 1 ? "ies" : "y"} — click any photo or use Upload to change it
+        {categories.filter(category => category.active).length} active categories
       </p>
 
-      {/* Add new */}
       <div className="bg-card border border-border p-5 sm:p-6 mb-6">
         <h2 className="font-display text-lg uppercase tracking-widest text-white mb-4">ADD CATEGORY</h2>
         <div className="flex gap-3">
           <Input
-            placeholder="e.g. Jackets"
+            placeholder="T-Shirts, Shirts, or Pants"
             value={newCategory}
             onChange={e => setNewCategory(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
@@ -273,40 +439,45 @@ export default function AdminCategoriesPage() {
           />
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 h-10 px-6 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors"
+            disabled={saving}
+            className="flex items-center gap-2 h-10 px-6 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors disabled:opacity-60"
           >
-            <Plus size={16} /> ADD
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            ADD
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          After adding, click the photo slot next to the category to upload a cover image.
-        </p>
       </div>
 
-      {/* Category list */}
       <div className="bg-card border border-border overflow-hidden">
-        {categories.length === 0 ? (
+        {loading ? (
+          <div className="py-20 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 size={18} className="animate-spin" />
+            <span className="uppercase tracking-widest text-sm">Loading categories...</span>
+          </div>
+        ) : categories.length === 0 ? (
           <div className="py-16 text-center text-muted-foreground">
             <Tag size={32} className="mx-auto mb-3 opacity-40" />
             <p>No categories yet. Add one above.</p>
           </div>
         ) : (
-          categories.map(cat => (
+          categories.map(category => (
             <CategoryRow
-              key={cat}
-              name={cat}
-              productCount={getCount(cat)}
-              image={getImage(cat)}
-              onImageChange={img => handleImageChange(cat, img)}
-              onDelete={() => handleDelete(cat)}
-              canDelete={getCount(cat) === 0}
+              key={category.id}
+              category={category}
+              productCount={getCount(category.name)}
+              image={getImage(category)}
+              onFileChange={file => handleFileChange(category, file)}
+              onImageChange={img => handleImageChange(category, img)}
+              onSetActive={active => handleSetActive(category, active)}
+              onSortChange={sortOrder => handleSortChange(category, sortOrder)}
+              canDeactivate={getCount(category.name) === 0}
             />
           ))
         )}
       </div>
 
       <p className="text-xs text-muted-foreground mt-4 uppercase tracking-widest">
-        Categories with active products cannot be deleted. Photo changes save instantly.
+        Only T-Shirts, Shirts, and Pants are allowed. Custom Design stays separate from product categories.
       </p>
     </AdminLayout>
   );

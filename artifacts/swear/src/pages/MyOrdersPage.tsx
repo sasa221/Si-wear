@@ -1,8 +1,14 @@
 import { useAuth } from "@/context/AuthContext";
-import type { Order } from "@/context/AuthContext";
+import type { Order, OrderStatus } from "@/context/AuthContext";
 import { useLocation, Link } from "wouter";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Package, Loader2 } from "lucide-react";
+import {
+  SUPABASE_NOT_CONNECTED_MESSAGE,
+  subscribeToTableChanges,
+  supabaseConfigured,
+  useDevOrderMock,
+} from "@/lib/supabase";
 
 function statusClass(status: string) {
   switch (status) {
@@ -15,19 +21,56 @@ function statusClass(status: string) {
   }
 }
 
+function cancellationPending(order: Order): boolean {
+  return order.cancellationRequested === true || order.cancellationStatus === "Pending";
+}
+
 export default function MyOrdersPage() {
   const { user, getUserOrders } = useAuth();
   const [, setLocation] = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadOrders = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setOrders(await getUserOrders());
+    } catch (err) {
+      console.error("Failed to load customer orders:", err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load orders.");
+    } finally {
+      setLoading(false);
+    }
+  }, [getUserOrders, user]);
 
   useEffect(() => {
     if (!user) { setLocation("/login"); return; }
-    getUserOrders()
-      .then(setOrders)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [user]);
+    loadOrders();
+  }, [user, setLocation, loadOrders]);
+
+  useEffect(() => {
+    if (!user || !supabaseConfigured) return;
+    return subscribeToTableChanges<{ id: string; status: OrderStatus; total_egp: number; created_at: string }>(
+      { table: "orders", filter: `user_id=eq.${user.id}`, channel: `customer-orders-${user.id}` },
+      change => {
+        if (change.eventType === "INSERT") {
+          loadOrders();
+          return;
+        }
+
+        if (change.eventType === "UPDATE") {
+          loadOrders();
+        }
+
+        if (change.eventType === "DELETE") {
+          setOrders(prev => prev.filter(order => order.id !== change.record.id));
+        }
+      }
+    );
+  }, [loadOrders, user]);
 
   if (!user) return null;
 
@@ -37,6 +80,23 @@ export default function MyOrdersPage() {
         style={{ fontSize: "clamp(2rem, 7vw, 4.5rem)", lineHeight: 0.95 }}>
         MY ORDERS
       </h1>
+
+      {!supabaseConfigured && (
+        <div className="mb-6 border border-red-500/50 bg-red-500/10 p-4 text-xs uppercase tracking-widest text-red-400">
+          <div className="flex flex-wrap items-center gap-2">
+            {useDevOrderMock && (
+              <span className="bg-primary text-black px-2 py-0.5 font-black">DEV MOCK</span>
+            )}
+            <span>{SUPABASE_NOT_CONNECTED_MESSAGE}</span>
+          </div>
+        </div>
+      )}
+
+      {loadError && (
+        <div className="mb-6 border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400">
+          {loadError}
+        </div>
+      )}
 
       {loading ? (
         <div className="py-24 flex items-center justify-center gap-3 text-muted-foreground">
@@ -53,7 +113,6 @@ export default function MyOrdersPage() {
         </div>
       ) : (
         <>
-          {/* Mobile cards */}
           <div className="md:hidden space-y-3">
             {orders.map(order => (
               <div key={order.id} className="bg-card border border-border p-4">
@@ -71,6 +130,11 @@ export default function MyOrdersPage() {
                     {order.status}
                   </span>
                 </div>
+                {cancellationPending(order) && (
+                  <div className="mb-3 inline-flex border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
+                    Cancellation pending
+                  </div>
+                )}
                 <div className="flex items-center justify-between border-t border-border/50 pt-3">
                   <p className="font-bold text-white text-lg">{order.total} EGP</p>
                   <Link
@@ -84,7 +148,6 @@ export default function MyOrdersPage() {
             ))}
           </div>
 
-          {/* Desktop table */}
           <div className="hidden md:block bg-card border border-border overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -102,9 +165,16 @@ export default function MyOrdersPage() {
                     <td className="py-4 px-5 font-display text-white font-bold">{order.id}</td>
                     <td className="py-4 px-5 text-muted-foreground text-sm">{new Date(order.createdAt).toLocaleDateString("en-GB")}</td>
                     <td className="py-4 px-5">
-                      <span className={`px-2 py-1 text-xs uppercase tracking-widest font-bold ${statusClass(order.status)}`}>
-                        {order.status}
-                      </span>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span className={`px-2 py-1 text-xs uppercase tracking-widest font-bold ${statusClass(order.status)}`}>
+                          {order.status}
+                        </span>
+                        {cancellationPending(order) && (
+                          <span className="border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-yellow-400">
+                            Cancellation pending
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-5 text-right text-white font-bold">{order.total} EGP</td>
                     <td className="py-4 px-5 text-right">

@@ -1,29 +1,53 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { getProducts, getCategories, getCategoryImages } from "@/hooks/useProducts";
+import { useEffect, useState } from "react";
+import { getProductsAsync } from "@/hooks/useProducts";
+import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
+import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
 
 const FALLBACK_IMAGES: Record<string, string> = {
   "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
   "Shirts":    "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=600&h=750&fit=crop&q=80",
   "Pants":     "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=600&h=750&fit=crop&q=80",
-  "Hoodies":   "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop&q=80",
 };
 
 const GENERIC_FALLBACK = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&h=750&fit=crop&q=80";
+const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
 
 export default function HomePage() {
-  const allProducts = getProducts();
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getProductsAsync({ activeOnly: true })
+      .then(products => {
+        if (!cancelled) {
+          setAllProducts(products.filter(product => ALLOWED_CATEGORY_SET.has(product.category)));
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load products.");
+      });
+    getCategoriesAsync()
+      .then(items => {
+        if (!cancelled) setCategories(items.filter(category => ALLOWED_CATEGORY_SET.has(category.name)));
+      })
+      .catch(err => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load categories.");
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const latestDrops = allProducts.filter(p => p.isNew);
   const bestSellers = allProducts.filter(p => p.isBestSeller);
 
-  const categories = getCategories();
-  const categoryImages = getCategoryImages();
-
-  const categoryCards = categories.map(name => ({
-    label: name,
-    href: `/shop?category=${encodeURIComponent(name)}`,
-    image: categoryImages[name] || FALLBACK_IMAGES[name] || GENERIC_FALLBACK,
+  const categoryCards = categories.map(category => ({
+    label: category.name,
+    href: `/shop?category=${encodeURIComponent(category.name)}`,
+    image: category.coverImageUrl || FALLBACK_IMAGES[category.name] || GENERIC_FALLBACK,
   }));
 
   return (
@@ -98,6 +122,14 @@ export default function HomePage() {
           </motion.div>
         </div>
       </section>
+
+      {loadError && (
+        <section className="bg-black px-4 py-4">
+          <div className="max-w-[1280px] mx-auto border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400">
+            {loadError}
+          </div>
+        </section>
+      )}
 
       {/* ── Category Cards ── */}
       {categoryCards.length > 0 && (

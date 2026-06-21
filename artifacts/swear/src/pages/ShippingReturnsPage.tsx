@@ -41,7 +41,7 @@ export default function ShippingReturnsPage() {
           <div className="space-y-4 text-muted-foreground relative z-10">
             <p className="flex justify-between border-b border-border/50 pb-2">
               <span className="text-white">Delivery Fee</span>
-              <span>60 EGP (All governorates)</span>
+              <span>Calculated by governorate and city/area at checkout</span>
             </p>
             <p className="flex justify-between border-b border-border/50 pb-2">
               <span className="text-white">Discount Codes</span>
@@ -66,7 +66,7 @@ export default function ShippingReturnsPage() {
             
             <div className="mt-8 pt-6 border-t border-border">
               <h3 className="text-xl font-display uppercase text-white mb-2">How to Exchange</h3>
-              <p>Message us on WhatsApp (+201220172714) with your order details and photos of the item. We will arrange a courier pickup and drop-off.</p>
+              <p>Open your delivered order and submit a return/exchange request, or send a support message from the Contact page. We will arrange the next step after review.</p>
             </div>
           </div>
         </section>

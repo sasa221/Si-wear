@@ -30,7 +30,10 @@ export function Footer() {
             <ul className="space-y-3 flex flex-col">
               <li><Link href="/about" className="text-muted-foreground hover:text-primary transition-colors">About Us</Link></li>
               <li><Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">Contact</Link></li>
-              <li><Link href="/shipping-returns" className="text-muted-foreground hover:text-primary transition-colors">Shipping & Returns</Link></li>
+              <li><Link href="/shipping-policy" className="text-muted-foreground hover:text-primary transition-colors">Shipping Policy</Link></li>
+              <li><Link href="/returns-exchange-policy" className="text-muted-foreground hover:text-primary transition-colors">Returns & Exchange</Link></li>
+              <li><Link href="/privacy-policy" className="text-muted-foreground hover:text-primary transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/terms-conditions" className="text-muted-foreground hover:text-primary transition-colors">Terms & Conditions</Link></li>
             </ul>
           </div>
         </div>
@@ -44,9 +47,9 @@ export function Footer() {
             <a href="#" className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors" aria-label="TikTok">
               <Music size={18} />
             </a>
-            <a href="https://wa.me/201220172714" className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors" aria-label="WhatsApp">
+            <Link href="/custom-design" className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors" aria-label="Custom Design">
               <MessageCircle size={18} />
-            </a>
+            </Link>
           </div>
         </div>
       </div>

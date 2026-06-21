@@ -3,6 +3,8 @@ import { Link } from "wouter";
 import { CheckCircle, Package } from "lucide-react";
 
 export default function OrderSuccessPage() {
+  const isDevMock = sessionStorage.getItem("swear_last_order_dev_mock") === "true";
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -35,7 +37,7 @@ export default function OrderSuccessPage() {
         transition={{ delay: 0.45 }}
         className="text-primary font-display uppercase tracking-widest text-sm mb-8"
       >
-        CASH ON DELIVERY
+        {isDevMock ? "DEV MOCK ORDER - LOCALSTORAGE ONLY" : "CASH ON DELIVERY"}
       </motion.p>
 
       <motion.div

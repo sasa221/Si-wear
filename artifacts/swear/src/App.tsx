@@ -6,6 +6,7 @@ import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { ScrollToTop } from "@/components/ScrollToTop";
 import { AnimatePresence } from "framer-motion";
 
 import HomePage from "@/pages/HomePage";
@@ -28,9 +29,23 @@ import AdminLoginPage from "@/pages/admin/AdminLoginPage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminOrdersPage from "@/pages/admin/AdminOrdersPage";
 import AdminProductsPage from "@/pages/admin/AdminProductsPage";
+import AdminInventoryPage from "@/pages/admin/AdminInventoryPage";
 import ProductFormPage from "@/pages/admin/ProductFormPage";
 import AdminCategoriesPage from "@/pages/admin/AdminCategoriesPage";
 import AdminDiscountCodesPage from "@/pages/admin/AdminDiscountCodesPage";
+import AdminShippingPage from "@/pages/admin/AdminShippingPage";
+import AdminReturnRequestsPage from "@/pages/admin/AdminReturnRequestsPage";
+import AdminOrderPrintPage from "@/pages/admin/AdminOrderPrintPage";
+import AdminMessagesPage from "@/pages/admin/AdminMessagesPage";
+import AdminMessageDetailPage from "@/pages/admin/AdminMessageDetailPage";
+import AdminUsersPage from "@/pages/admin/AdminUsersPage";
+import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
+import {
+  PrivacyPolicyPage,
+  ReturnsExchangePolicyPage,
+  ShippingPolicyPage,
+  TermsConditionsPage,
+} from "@/pages/PolicyPages";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -45,12 +60,20 @@ function AppRouter() {
         <Switch>
           <Route path="/admin/login" component={AdminLoginPage} />
           <Route path="/admin" component={AdminDashboard} />
+          <Route path="/admin/orders/:id/print" component={AdminOrderPrintPage} />
           <Route path="/admin/orders" component={AdminOrdersPage} />
+          <Route path="/admin/messages/:id" component={AdminMessageDetailPage} />
+          <Route path="/admin/messages" component={AdminMessagesPage} />
+          <Route path="/admin/users" component={AdminUsersPage} />
           <Route path="/admin/products" component={AdminProductsPage} />
+          <Route path="/admin/inventory" component={AdminInventoryPage} />
           <Route path="/admin/products/new" component={ProductFormPage} />
           <Route path="/admin/products/:id/edit" component={ProductFormPage} />
           <Route path="/admin/categories" component={AdminCategoriesPage} />
           <Route path="/admin/discount-codes" component={AdminDiscountCodesPage} />
+          <Route path="/admin/shipping" component={AdminShippingPage} />
+          <Route path="/admin/returns" component={AdminReturnRequestsPage} />
+          <Route path="/admin/settings" component={AdminSettingsPage} />
           <Route component={NotFound} />
         </Switch>
       </AnimatePresence>
@@ -68,6 +91,7 @@ function AppRouter() {
             <Route path="/signup" component={SignupPage} />
             <Route path="/profile" component={ProfilePage} />
             <Route path="/my-orders" component={MyOrdersPage} />
+            <Route path="/order/:id" component={OrderDetailPage} />
             <Route path="/orders/:id" component={OrderDetailPage} />
             <Route path="/shop" component={ShopPage} />
             <Route path="/shop/:id" component={ProductDetailPage} />
@@ -78,6 +102,10 @@ function AppRouter() {
             <Route path="/about" component={AboutPage} />
             <Route path="/contact" component={ContactPage} />
             <Route path="/shipping-returns" component={ShippingReturnsPage} />
+            <Route path="/shipping-policy" component={ShippingPolicyPage} />
+            <Route path="/returns-exchange-policy" component={ReturnsExchangePolicyPage} />
+            <Route path="/privacy-policy" component={PrivacyPolicyPage} />
+            <Route path="/terms-conditions" component={TermsConditionsPage} />
             <Route path="/order-success" component={OrderSuccessPage} />
             <Route component={NotFound} />
           </Switch>
@@ -95,6 +123,7 @@ function App() {
         <AuthProvider>
           <CartProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <ScrollToTop />
               <AppRouter />
             </WouterRouter>
             <Toaster />

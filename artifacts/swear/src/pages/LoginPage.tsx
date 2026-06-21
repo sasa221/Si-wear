@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
 const loginSchema = z.object({
-  emailOrPhone: z.string().min(1, "Email or phone is required"),
+  emailOrPhone: z.string().min(1, "Email is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -25,8 +25,8 @@ export default function LoginPage() {
     defaultValues: { emailOrPhone: "", password: "" },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    const success = login(data.emailOrPhone, data.password);
+  const onSubmit = async (data: LoginFormValues) => {
+    const success = await login(data.emailOrPhone, data.password);
     if (success) {
       const urlParams = new URLSearchParams(window.location.search);
       const redirect = urlParams.get("redirect") || "/";
@@ -54,9 +54,9 @@ export default function LoginPage() {
               name="emailOrPhone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs tracking-widest">Email or Phone</FormLabel>
+                  <FormLabel className="uppercase text-xs tracking-widest">Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your email or phone" className="bg-background rounded-none" {...field} />
+                    <Input placeholder="Enter your email" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -69,14 +69,19 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Enter your password" className="bg-background rounded-none" {...field} />
+                    <Input type="password" placeholder="Enter your password" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <button type="submit" className="w-full h-12 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors" data-testid="button-login">
-              SIGN IN
+            <button
+              type="submit"
+              disabled={form.formState.isSubmitting}
+              className="w-full h-12 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              data-testid="button-login"
+            >
+              {form.formState.isSubmitting ? "SIGNING IN..." : "SIGN IN"}
             </button>
           </form>
         </Form>

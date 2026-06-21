@@ -4,12 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
+    "dev": "node ./scripts/dev.cjs",
     "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "start": "node --env-file=.env --enable-source-maps ./dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:qa": "node --env-file=.env ./scripts/qa.mjs",
+    "purge-users": "node ./scripts/purge-users.cjs",
+    "cleanup-legacy-qa-order": "node ./scripts/cleanup-legacy-qa-order.cjs",
+    "create-admin": "node ./scripts/create-admin.cjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.38.4",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",

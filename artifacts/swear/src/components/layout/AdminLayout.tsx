@@ -1,7 +1,8 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, X, LayoutDashboard, ShoppingBag, Package, LogOut, Store, Tag, Percent } from "lucide-react";
+import { Menu, X, LayoutDashboard, ShoppingBag, Package, LogOut, Store, Tag, Percent, Truck, RotateCcw, MessageSquare, Users, Boxes, Settings } from "lucide-react";
+import { useDevOrderMock } from "@/lib/supabase";
 
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -17,9 +18,15 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const navItems = [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
+    { label: "Messages", href: "/admin/messages", icon: MessageSquare },
+    { label: "Users", href: "/admin/users", icon: Users },
     { label: "Products", href: "/admin/products", icon: Package },
+    { label: "Inventory", href: "/admin/inventory", icon: Boxes },
     { label: "Categories", href: "/admin/categories", icon: Tag },
     { label: "Discount Codes", href: "/admin/discount-codes", icon: Percent },
+    { label: "Shipping", href: "/admin/shipping", icon: Truck },
+    { label: "Returns", href: "/admin/returns", icon: RotateCcw },
+    { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
   return (
@@ -76,7 +83,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         <div className="p-4 border-t border-border">
-          <p className="text-xs text-muted-foreground mb-4 px-2 uppercase tracking-widest">Logged in as Admin</p>
+          <p className="text-xs text-muted-foreground mb-4 px-2 uppercase tracking-widest">
+            Logged in as Admin
+            {useDevOrderMock && (
+              <span className="ml-2 bg-primary text-black px-2 py-0.5 font-black">DEV MOCK</span>
+            )}
+          </p>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-destructive hover:bg-destructive/10 uppercase tracking-widest text-sm font-bold transition-colors"
@@ -95,7 +107,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <span className="ml-4 font-display text-xl font-black text-primary uppercase tracking-widest">ADMIN</span>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main data-route-scroll-root className="flex-1 overflow-y-auto p-4 md:p-8">
           {children}
         </main>
       </div>

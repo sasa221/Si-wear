@@ -1,11 +1,25 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
+import { useEffect, useState } from "react";
 import { Paintbrush, Send, Zap } from "lucide-react";
+import { defaultStoreSettings, getStoreSettings } from "@/lib/storeSettings";
 
 export default function CustomDesignPage() {
+  const [whatsappNumber, setWhatsappNumber] = useState(defaultStoreSettings.whatsappNumber);
+
+  useEffect(() => {
+    let cancelled = false;
+    getStoreSettings()
+      .then(settings => {
+        if (!cancelled) setWhatsappNumber(settings.whatsappNumber || defaultStoreSettings.whatsappNumber);
+      })
+      .catch(err => console.error("Failed to load store settings:", err));
+    return () => { cancelled = true; };
+  }, []);
+
   const handleWhatsApp = () => {
     const message = "Hello S! Wear, I want to create a custom design.\nProduct type: \nSize: \nColor: \nDesign idea: ";
-    window.open(`https://wa.me/201220172714?text=${encodeURIComponent(message)}`, "_blank");
+    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
   return (

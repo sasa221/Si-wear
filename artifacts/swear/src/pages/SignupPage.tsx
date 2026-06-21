@@ -31,14 +31,22 @@ export default function SignupPage() {
     defaultValues: { name: "", phone: "", email: "", password: "", confirmPassword: "" },
   });
 
-  const onSubmit = (data: SignupFormValues) => {
-    const success = signup(data.name, data.phone, data.email, data.password);
-    if (success) {
-      setLocation("/");
+  const onSubmit = async (data: SignupFormValues) => {
+    const result = await signup(data.name, data.phone, data.email, data.password);
+    if (result.success) {
+      if (result.requiresEmailConfirmation) {
+        toast({
+          title: "Account created",
+          description: result.message,
+        });
+        setLocation("/login");
+      } else {
+        setLocation("/");
+      }
     } else {
       toast({
         title: "Error",
-        description: "Email already registered",
+        description: result.message || "Could not create account. Please try again.",
         variant: "destructive",
       });
     }
@@ -60,7 +68,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Full Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" className="bg-background rounded-none" {...field} />
+                    <Input placeholder="John Doe" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -73,7 +81,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Phone Number</FormLabel>
                   <FormControl>
-                    <Input placeholder="01XXXXXXXXX" className="bg-background rounded-none" {...field} />
+                    <Input placeholder="01XXXXXXXXX" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -86,7 +94,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Email Address</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="john@example.com" className="bg-background rounded-none" {...field} />
+                    <Input type="email" placeholder="john@example.com" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -99,7 +107,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Min 8 characters" className="bg-background rounded-none" {...field} />
+                    <Input type="password" placeholder="Min 8 characters" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -112,14 +120,19 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel className="uppercase text-xs tracking-widest">Confirm Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Confirm password" className="bg-background rounded-none" {...field} />
+                    <Input type="password" placeholder="Confirm password" className="bg-background rounded-none" style={{ fontSize: "16px" }} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <button type="submit" className="w-full h-12 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors" data-testid="button-signup">
-              CREATE ACCOUNT
+            <button
+              type="submit"
+              disabled={form.formState.isSubmitting}
+              className="w-full h-12 bg-primary text-black font-display font-bold uppercase tracking-widest hover:bg-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              data-testid="button-signup"
+            >
+              {form.formState.isSubmitting ? "CREATING..." : "CREATE ACCOUNT"}
             </button>
           </form>
         </Form>

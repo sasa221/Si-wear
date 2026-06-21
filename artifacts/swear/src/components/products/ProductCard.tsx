@@ -1,20 +1,25 @@
 import { Link } from "wouter";
-import { Product } from "@/data/products";
+import { Product, getInventoryStatus, getStockLabel } from "@/data/products";
+import { getProductImage, useFallbackImage } from "@/lib/images";
 
 export function ProductCard({ product }: { product: Product }) {
+  const inventoryStatus = getInventoryStatus(product);
+  const isOutOfStock = inventoryStatus === "out_of_stock";
+
   return (
     <Link
-      href={`/shop/${product.id}`}
+      href={`/shop/${product.slug || product.id}`}
       className="group block relative w-full overflow-hidden bg-[#111] hover:bg-[#161616] transition-colors duration-300"
       data-testid={`card-product-${product.id}`}
     >
       {/* Image */}
       <div className="relative overflow-hidden" style={{ aspectRatio: "4/5" }}>
         <img
-          src={product.images[0]}
+          src={getProductImage(product.images)}
           alt={product.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
+          onError={useFallbackImage}
         />
 
         {/* Badges */}
@@ -29,7 +34,13 @@ export function ProductCard({ product }: { product: Product }) {
               BEST SELLER
             </span>
           )}
+          {(inventoryStatus === "low_stock" || isOutOfStock) && (
+            <span className={`${isOutOfStock ? "bg-red-500 text-white" : "bg-yellow-400 text-black"} font-display uppercase tracking-wide text-[9px] font-bold px-1.5 py-0.5`}>
+              {getStockLabel(product)}
+            </span>
+          )}
         </div>
+        {isOutOfStock && <div className="absolute inset-0 bg-black/50" />}
       </div>
 
       {/* Info */}
@@ -38,8 +49,12 @@ export function ProductCard({ product }: { product: Product }) {
           {product.name}
         </h3>
         <p className="text-white font-bold mt-0.5 text-xs sm:text-sm">{product.price} EGP</p>
-        <div className="mt-2 w-full py-1.5 bg-[#39FF14] text-black font-display font-bold uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center group-hover:bg-white transition-colors">
-          View Product
+        <div className={`mt-2 w-full py-1.5 font-display font-bold uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center transition-colors ${
+          isOutOfStock
+            ? "bg-zinc-800 text-zinc-400"
+            : "bg-[#39FF14] text-black group-hover:bg-white"
+        }`}>
+          {isOutOfStock ? "Out of Stock" : "View Product"}
         </div>
       </div>
     </Link>

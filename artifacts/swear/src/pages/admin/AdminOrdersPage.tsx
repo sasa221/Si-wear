@@ -1,13 +1,18 @@
 import { useAuth, OrderStatus } from "@/context/AuthContext";
 import type { Order } from "@/context/AuthContext";
-import { useLocation } from "wouter";
-import { useEffect, useState, useCallback } from "react";
+import { Link, useLocation } from "wouter";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
+import { SUPABASE_NOT_CONNECTED_MESSAGE, subscribeToTableChanges, supabaseConfigured, useDevOrderMock } from "@/lib/supabase";
+import { dbResolveCancellation, dbUpdateOrderAdminNotes } from "@/lib/orderService";
+import { ChevronDown, ChevronUp, Download, Loader2, Printer, RefreshCw } from "lucide-react";
 
-const ALL_STATUSES: OrderStatus[] = ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
+const FILTER_STATUSES = ['All', 'Cancellation Requested', 'Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'] as const;
+const ORDER_STATUSES: OrderStatus[] = ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled'];
+
+type StatusFilter = typeof FILTER_STATUSES[number];
 
 function statusClass(status: OrderStatus) {
   switch (status) {
@@ -20,6 +25,10 @@ function statusClass(status: OrderStatus) {
   }
 }
 
+function cancellationPending(order: Order): boolean {
+  return order.cancellationRequested === true || order.cancellationStatus === "Pending";
+}
+
 export default function AdminOrdersPage() {
   const { isAdmin, getAllOrders, updateOrderStatus } = useAuth();
   const [, setLocation] = useLocation();
@@ -28,10 +37,12 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState<StatusFilter>("All");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [cancellationNoteDrafts, setCancellationNoteDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!isAdmin) setLocation("/admin/login");
@@ -44,7 +55,7 @@ export default function AdminOrdersPage() {
       setOrders(data);
     } catch (err) {
       console.error("Failed to load orders:", err);
-      toast({ title: "Error", description: "Failed to load orders. Check your connection.", variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load orders.", variant: "destructive" });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -56,27 +67,98 @@ export default function AdminOrdersPage() {
     loadOrders();
   }, [isAdmin, loadOrders]);
 
-  if (!isAdmin) return null;
+  useEffect(() => {
+    if (!isAdmin || !supabaseConfigured) return;
+    return subscribeToTableChanges<Record<string, any>>(
+      { table: "orders", channel: "admin-orders" },
+      change => {
+        if (change.eventType === "INSERT" || change.eventType === "UPDATE") {
+          loadOrders();
+        }
+      }
+    );
+  }, [isAdmin, loadOrders]);
 
-  const filtered = orders.filter(o => {
-    const matchFilter = filter === "All" || o.status === filter;
+  const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const matchSearch = !q ||
-      o.id.toLowerCase().includes(q) ||
-      o.customer.name.toLowerCase().includes(q) ||
-      o.customer.phone.includes(q) ||
-      o.customer.governorate.toLowerCase().includes(q);
-    return matchFilter && matchSearch;
-  });
+
+    return orders.filter(order => {
+      const matchFilter =
+        filter === "All" ||
+        (filter === "Cancellation Requested" ? cancellationPending(order) : order.status === filter);
+      const matchSearch = !q ||
+        order.customer.name.toLowerCase().includes(q) ||
+        order.customer.phone.toLowerCase().includes(q);
+
+      return matchFilter && matchSearch;
+    });
+  }, [filter, orders, search]);
+
+  if (!isAdmin) return null;
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     setUpdatingId(orderId);
     try {
       await updateOrderStatus(orderId, newStatus);
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-      toast({ title: "Status Updated", description: `Order ${orderId} → ${newStatus}` });
+      toast({ title: "Status Updated", description: `Order ${orderId} -> ${newStatus}` });
     } catch (err) {
-      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to update status.", variant: "destructive" });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const exportCsv = () => {
+    const rows = filtered.map(order => ({
+      order_number: order.id,
+      customer_name: order.customer.name,
+      phone: order.customer.phone,
+      governorate: order.customer.governorate,
+      city: order.customer.city,
+      address: order.customer.address,
+      status: order.status,
+      cancellation_status: order.cancellationStatus ?? "None",
+      total_egp: order.total,
+      date: new Date(order.createdAt).toISOString(),
+    }));
+    const headers = ["order_number", "customer_name", "phone", "governorate", "city", "address", "status", "cancellation_status", "total_egp", "date"];
+    const escapeCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [headers.join(","), ...rows.map(row => headers.map(header => escapeCell(row[header as keyof typeof row])).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `swear-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveNotes = async (orderId: string) => {
+    const adminNotes = noteDrafts[orderId] ?? "";
+    try {
+      await dbUpdateOrderAdminNotes(orderId, adminNotes);
+      setOrders(prev => prev.map(order => order.id === orderId ? { ...order, adminNotes } : order));
+      toast({ title: "Notes saved" });
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to save notes.", variant: "destructive" });
+    }
+  };
+
+  const handleCancellationDecision = async (order: Order, approved: boolean) => {
+    setUpdatingId(order.id);
+    try {
+      const adminNote = cancellationNoteDrafts[order.id]?.trim();
+      await dbResolveCancellation(order.id, approved, adminNote);
+      setCancellationNoteDrafts(prev => {
+        const next = { ...prev };
+        delete next[order.id];
+        return next;
+      });
+      await loadOrders();
+      toast({ title: approved ? "Cancellation approved" : "Cancellation rejected" });
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to update cancellation.", variant: "destructive" });
     } finally {
       setUpdatingId(null);
     }
@@ -85,38 +167,72 @@ export default function AdminOrdersPage() {
   return (
     <AdminLayout>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl md:text-5xl font-display font-black uppercase text-white">ORDERS</h1>
-        <button
-          onClick={() => loadOrders(true)}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:text-white transition-colors text-xs uppercase tracking-widest"
-        >
-          <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl md:text-5xl font-display font-black uppercase text-white">ORDERS</h1>
+          <span className="bg-[#39FF14] text-black px-2.5 py-1 text-xs font-black uppercase tracking-widest">
+            {filtered.length}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:text-white transition-colors text-xs uppercase tracking-widest disabled:opacity-50"
+          >
+            <Download size={13} />
+            CSV
+          </button>
+          <button
+            onClick={() => loadOrders(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:text-white transition-colors text-xs uppercase tracking-widest"
+          >
+            <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
-      <div className="bg-card border border-border p-4 mb-4 flex flex-col md:flex-row gap-4 justify-between">
-        <div className="flex gap-2 flex-wrap">
-          {["All", ...ALL_STATUSES].map(f => (
+      {!supabaseConfigured && (
+        <div className="mb-4 border border-red-500/50 bg-red-500/10 p-4 text-xs uppercase tracking-widest text-red-400">
+          <div className="flex flex-wrap items-center gap-2">
+            {useDevOrderMock && (
+              <span className="bg-primary text-black px-2 py-0.5 font-black">DEV MOCK</span>
+            )}
+            <span>{SUPABASE_NOT_CONNECTED_MESSAGE}</span>
+          </div>
+          {useDevOrderMock && (
+            <p className="mt-2 text-primary">
+              Development only: reading mock orders from this browser localStorage.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="bg-card border border-border p-4 mb-4 space-y-3">
+        <Input
+          placeholder="Search customer name or phone..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="h-11 bg-background rounded-none border-border"
+        />
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {FILTER_STATUSES.map(f => (
             <button
+              type="button"
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-xs uppercase tracking-widest font-bold transition-colors ${
-                filter === f ? 'bg-primary text-black' : 'bg-background text-muted-foreground hover:text-white'
+              aria-pressed={filter === f}
+              className={`shrink-0 border px-3 py-1.5 text-xs uppercase tracking-widest font-bold transition-colors ${
+                filter === f
+                  ? 'bg-[#39FF14] border-[#39FF14] text-black shadow-[0_0_14px_rgba(57,255,20,0.25)]'
+                  : 'bg-background border-border text-muted-foreground hover:text-white'
               }`}
             >
               {f}
             </button>
           ))}
-        </div>
-        <div className="w-full md:w-64">
-          <Input
-            placeholder="Search ID, name, phone..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="bg-background rounded-none border-border"
-          />
         </div>
       </div>
 
@@ -148,9 +264,8 @@ export default function AdminOrdersPage() {
                     </td>
                   </tr>
                 ) : filtered.map(order => (
-                  <>
+                  <Fragment key={order.id}>
                     <tr
-                      key={order.id}
                       className="border-b border-border/40 hover:bg-background/30 transition-colors cursor-pointer"
                       onClick={() => setExpandedId(expandedId === order.id ? null : order.id)}
                     >
@@ -160,6 +275,11 @@ export default function AdminOrdersPage() {
                       <td className="py-3 px-4">
                         <p className="font-display text-white text-base">{order.id}</p>
                         <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString('en-GB')}</p>
+                        {cancellationPending(order) && (
+                          <span className="mt-2 inline-flex border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-red-400">
+                            Cancellation requested
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <p className="text-white text-sm font-semibold">{order.customer.name}</p>
@@ -182,7 +302,7 @@ export default function AdminOrdersPage() {
                             onChange={e => handleStatusChange(order.id, e.target.value as OrderStatus)}
                             className={`h-8 px-2 text-xs uppercase tracking-widest font-bold outline-none cursor-pointer border bg-transparent ${statusClass(order.status)}`}
                           >
-                            {ALL_STATUSES.map(s => (
+                            {ORDER_STATUSES.map(s => (
                               <option key={s} value={s} className="bg-[#111] text-white normal-case font-normal">{s}</option>
                             ))}
                           </select>
@@ -207,6 +327,54 @@ export default function AdminOrdersPage() {
                                 )}
                                 <div className="flex gap-2 pt-1"><span className="text-muted-foreground w-24 flex-shrink-0">Payment</span><span className="text-primary font-bold">Cash on Delivery</span></div>
                               </div>
+
+                              {cancellationPending(order) && (
+                                <div className="mt-4 border border-red-500/40 bg-red-500/10 p-3">
+                                  <p className="text-xs uppercase tracking-widest text-red-400 font-bold mb-2">Cancellation Request</p>
+                                  <p className="text-sm text-white mb-3">{order.cancellationReason || "No reason provided."}</p>
+                                  <textarea
+                                    value={cancellationNoteDrafts[order.id] ?? ""}
+                                    onChange={event => setCancellationNoteDrafts(prev => ({ ...prev, [order.id]: event.target.value }))}
+                                    placeholder="Admin note for the customer..."
+                                    className="mb-3 w-full min-h-16 bg-card border border-red-500/30 p-3 text-sm text-white outline-none focus:border-primary"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={updatingId === order.id}
+                                      onClick={() => handleCancellationDecision(order, true)}
+                                      className="px-3 py-2 bg-primary text-black text-xs uppercase tracking-widest font-bold disabled:opacity-50"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={updatingId === order.id}
+                                      onClick={() => handleCancellationDecision(order, false)}
+                                      className="px-3 py-2 border border-border text-white text-xs uppercase tracking-widest font-bold disabled:opacity-50"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="mt-4">
+                                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-bold">Admin Private Notes</p>
+                                <textarea
+                                  value={noteDrafts[order.id] ?? order.adminNotes ?? ""}
+                                  onChange={event => setNoteDrafts(prev => ({ ...prev, [order.id]: event.target.value }))}
+                                  placeholder="Customer confirmed by phone..."
+                                  className="w-full min-h-20 bg-card border border-border p-3 text-sm text-white outline-none focus:border-primary"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveNotes(order.id)}
+                                  className="mt-2 px-3 py-2 bg-primary text-black text-xs uppercase tracking-widest font-bold"
+                                >
+                                  Save Notes
+                                </button>
+                              </div>
                             </div>
 
                             <div>
@@ -227,7 +395,7 @@ export default function AdminOrdersPage() {
                               <div className="mt-3 pt-3 border-t border-border/40 space-y-1 text-xs">
                                 <div className="flex justify-between text-muted-foreground">
                                   <span>Subtotal</span>
-                                  <span className="text-white">{order.total - order.deliveryFee - (order.discountAmount ?? 0)} EGP</span>
+                                  <span className="text-white">{order.total - order.deliveryFee + (order.discountAmount ?? 0)} EGP</span>
                                 </div>
                                 {(order.discountAmount ?? 0) > 0 && (
                                   <div className="flex justify-between text-primary font-bold">
@@ -244,12 +412,18 @@ export default function AdminOrdersPage() {
                                   <span className="text-primary text-base">{order.total} EGP</span>
                                 </div>
                               </div>
+                              <Link
+                                href={`/admin/orders/${order.id}/print`}
+                                className="mt-4 inline-flex items-center gap-2 border border-primary px-3 py-2 text-primary hover:bg-primary hover:text-black text-xs uppercase tracking-widest font-bold transition-colors"
+                              >
+                                <Printer size={13} /> Print Order
+                              </Link>
                             </div>
                           </div>
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

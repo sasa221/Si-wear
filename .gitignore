@@ -1,7 +1,8 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # compiled output
-dist
+dist/
+build/
 tmp
 out-tsc
 *.tsbuildinfo
@@ -9,7 +10,12 @@ out-tsc
 .expo-shared
 
 # dependencies
-node_modules
+node_modules/
+
+# env / secrets
+.env
+.env.*
+!.env.example
 
 # IDEs and editors
 /.idea
@@ -30,12 +36,16 @@ node_modules
 # misc
 /.sass-cache
 /connect.lock
-/coverage
+coverage/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
+*.log
 testem.log
 /typings
+test-results/
+playwright-report/
+attached_assets/
 
 # System Files
 .DS_Store

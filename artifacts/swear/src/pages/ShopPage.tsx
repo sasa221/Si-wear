@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearch } from "wouter";
 import { motion } from "framer-motion";
-import { getProducts, getCategories } from "@/hooks/useProducts";
+import { getProductsAsync } from "@/hooks/useProducts";
 import { ProductGrid } from "@/components/products/ProductGrid";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
+import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
 
-const FIXED_TABS = ["All", "T-Shirts", "Shirts", "Pants", "Custom Design"];
+const FIXED_TABS = ["All", ...ALLOWED_CATEGORIES];
+const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
 
 export default function ShopPage() {
   const searchString = useSearch();
@@ -14,19 +16,37 @@ export default function ShopPage() {
 
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState("newest");
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const allProducts = useMemo(() => getProducts(), []);
-  const dynamicCategories = useMemo(() => {
-    const cats = getCategories();
-    const tabs = ["All", ...cats.filter(c => c !== "Hoodies")];
-    const extra = tabs.filter(t => !FIXED_TABS.includes(t));
-    const base = FIXED_TABS.filter(t => t === "All" || cats.includes(t));
-    return [...new Set([...base, ...extra])];
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    getProductsAsync({ activeOnly: true })
+      .then(products => {
+        if (!cancelled) {
+          setAllProducts(products.filter(product => ALLOWED_CATEGORY_SET.has(product.category)));
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load products.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
+  const dynamicCategories = useMemo(() => {
+    const cats = [...new Set(allProducts.map(product => product.category))];
+    return FIXED_TABS.filter(t => t === "All" || cats.includes(t));
+  }, [allProducts]);
+
   const filteredProducts = useMemo(() => {
-    let result = category === "All"
-      ? allProducts.filter(p => p.category !== "Hoodies")
+    let result = category === "All" || !ALLOWED_CATEGORY_SET.has(category)
+      ? allProducts
       : allProducts.filter(p => p.category === category);
     if (sort === "price-low") {
       result = [...result].sort((a, b) => a.price - b.price);
@@ -104,8 +124,20 @@ export default function ShopPage() {
           </div>
         </div>
 
-        {/* Product grid */}
-        <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
+        {loadError && (
+          <div className="border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-400 mb-5">
+            {loadError}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="py-24 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 size={18} className="animate-spin" />
+            <span className="uppercase tracking-widest text-sm">Loading products...</span>
+          </div>
+        ) : (
+          <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
+        )}
       </div>
     </motion.div>
   );

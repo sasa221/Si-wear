@@ -1,13 +1,11 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { useCart } from "@/context/CartContext";
+import { CART_ITEM_UPDATED_MESSAGE, useCart } from "@/context/CartContext";
 import { Minus, Plus, X, ShoppingBag } from "lucide-react";
-
-const DELIVERY_FEE = 60;
+import { getProductImage, useFallbackImage } from "@/lib/images";
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, totalPrice } = useCart();
-  const finalTotal = totalPrice + DELIVERY_FEE;
 
   if (items.length === 0) {
     return (
@@ -56,36 +54,45 @@ export default function CartPage() {
           <div className="space-y-4 md:space-y-6">
             {items.map((item, index) => (
               <div
-                key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${index}`}
+                key={`${item.product.id}-${item.variantId}-${index}`}
                 className="flex gap-3 py-4 border-b border-border items-start md:grid md:grid-cols-12 md:gap-4 md:items-center"
               >
                 {/* Image + info */}
                 <div className="flex gap-3 flex-1 min-w-0 md:col-span-6">
                   <div className="w-20 h-26 sm:w-24 sm:h-32 bg-card border border-border flex-shrink-0" style={{ height: "104px" }}>
-                    <img src={item.product.images[0]} alt={item.product.name} className="w-full h-full object-cover" />
+                    <img
+                      src={item.image || getProductImage(item.product.images)}
+                      alt={item.productName || item.product.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={useFallbackImage}
+                    />
                   </div>
                   <div className="flex flex-col justify-between py-1 min-w-0">
                     <div>
-                      <Link href={`/shop/${item.product.id}`} className="font-display uppercase text-sm sm:text-base text-white hover:text-primary transition-colors line-clamp-2 leading-tight">
-                        {item.product.name}
+                      <Link href={`/shop/${item.product.slug || item.product.id}`} className="font-display uppercase text-sm sm:text-base text-white hover:text-primary transition-colors line-clamp-2 leading-tight">
+                        {item.productName || item.product.name}
                       </Link>
-                      <p className="text-muted-foreground text-xs mt-1">{item.product.price} EGP</p>
+                      <p className="text-muted-foreground text-xs mt-1">{item.price} EGP</p>
                       <p className="text-xs mt-0.5 text-muted-foreground">{item.selectedSize} / {item.selectedColor}</p>
+                      {(item.variantIssue || !item.variantId) && (
+                        <p className="text-xs mt-1 text-red-400">{item.variantIssue || CART_ITEM_UPDATED_MESSAGE}</p>
+                      )}
                     </div>
                     {/* Mobile: qty controls inline */}
                     <div className="flex items-center justify-between mt-3 md:hidden">
                       <div className="flex items-center border border-border h-9">
-                        <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1)} className="px-2.5 text-white hover:text-primary transition-colors h-full">
+                        <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1, item.variantId)} className="px-2.5 text-white hover:text-primary transition-colors h-full">
                           <Minus size={12} />
                         </button>
                         <span className="w-7 text-center text-white text-sm">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity + 1)} className="px-2.5 text-white hover:text-primary transition-colors h-full">
+                        <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity + 1, item.variantId)} className="px-2.5 text-white hover:text-primary transition-colors h-full">
                           <Plus size={12} />
                         </button>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-white font-bold text-sm">{item.product.price * item.quantity} EGP</span>
-                        <button onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
+                        <span className="text-white font-bold text-sm">{item.price * item.quantity} EGP</span>
+                        <button onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor, item.variantId)} className="text-muted-foreground hover:text-destructive transition-colors p-1">
                           <X size={16} />
                         </button>
                       </div>
@@ -96,11 +103,11 @@ export default function CartPage() {
                 {/* Desktop: qty controls */}
                 <div className="col-span-3 hidden md:flex justify-center items-center">
                   <div className="flex items-center border border-border h-10 w-fit">
-                    <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1)} className="px-3 text-white hover:text-primary transition-colors">
+                    <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity - 1, item.variantId)} className="px-3 text-white hover:text-primary transition-colors">
                       <Minus size={14} />
                     </button>
                     <span className="w-8 text-center text-white text-sm">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity + 1)} className="px-3 text-white hover:text-primary transition-colors">
+                    <button onClick={() => updateQuantity(item.product.id, item.selectedSize, item.selectedColor, item.quantity + 1, item.variantId)} className="px-3 text-white hover:text-primary transition-colors">
                       <Plus size={14} />
                     </button>
                   </div>
@@ -108,8 +115,8 @@ export default function CartPage() {
 
                 {/* Desktop: total + remove */}
                 <div className="col-span-3 hidden md:flex justify-end items-center gap-3">
-                  <span className="text-white font-bold">{item.product.price * item.quantity} EGP</span>
-                  <button onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor)} className="text-muted-foreground hover:text-destructive transition-colors p-2">
+                  <span className="text-white font-bold">{item.price * item.quantity} EGP</span>
+                  <button onClick={() => removeItem(item.product.id, item.selectedSize, item.selectedColor, item.variantId)} className="text-muted-foreground hover:text-destructive transition-colors p-2">
                     <X size={18} />
                   </button>
                 </div>
@@ -132,15 +139,15 @@ export default function CartPage() {
               </div>
               <div className="flex justify-between text-muted-foreground text-sm">
                 <span>Delivery</span>
-                <span className="text-white">{DELIVERY_FEE} EGP</span>
+                <span className="text-white">Calculated at checkout</span>
               </div>
               <p className="text-xs text-muted-foreground/60 italic">Have a discount code? Apply it at checkout.</p>
             </div>
 
             <div className="border-t border-border pt-4 mb-6">
               <div className="flex justify-between items-end">
-                <span className="font-display uppercase tracking-widest text-base sm:text-lg text-white">Total</span>
-                <span className="text-2xl sm:text-3xl text-white font-bold">{finalTotal} EGP</span>
+                <span className="font-display uppercase tracking-widest text-base sm:text-lg text-white">Subtotal</span>
+                <span className="text-2xl sm:text-3xl text-white font-bold">{totalPrice} EGP</span>
               </div>
             </div>
 
