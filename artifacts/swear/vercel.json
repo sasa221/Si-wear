@@ -1,4 +1,7 @@
 {
+  "env": {
+    "VITE_API_URL": "https://si-wear-api-server-hu6e.vercel.app"
+  },
   "rewrites": [
     {
       "source": "/(.*)",

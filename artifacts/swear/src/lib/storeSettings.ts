@@ -4,6 +4,7 @@ import {
   supabaseConfigured,
   useDevOrderMock,
 } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiConfig";
 
 const SETTINGS_KEY = "swear_store_settings";
 
@@ -56,11 +57,6 @@ type SettingsApiPayload = {
   message?: string;
   error?: string;
 };
-
-function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
-  return base ? `${base}/api${path}` : `/api${path}`;
-}
 
 function rowToSettings(row: StoreSettingsRow | undefined): StoreSettings {
   return {

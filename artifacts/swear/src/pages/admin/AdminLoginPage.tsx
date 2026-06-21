@@ -1,11 +1,13 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { useLocation } from "wouter";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 import { apiUrl } from "@/lib/apiClient";
-import { saveSupabaseAuthSession } from "@/lib/supabase";
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required"),
@@ -14,104 +16,52 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-const ADMIN_SESSION_KEY = "swear_admin_session";
-
-interface AdminSession {
-  user_id: string;
-  email: string;
-  role: string;
-  loggedInAt: string;
+function adminLoginDebug(message: string, value?: string | number): void {
+  if (!import.meta.env.PROD) return;
+  if (typeof value === "undefined") {
+    console.log(`[S! Wear] ${message}`);
+  } else {
+    console.log(`[S! Wear] ${message}`, value);
+  }
 }
 
 export default function AdminLoginPage() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const { isAdmin, loginAdmin } = useAuth();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
+  useEffect(() => {
+    if (isAdmin) {
+      adminLoginDebug("navigating to /admin");
+      navigate("/admin", { replace: true });
+    }
+  }, [isAdmin, navigate]);
+
   const onSubmit = async (data: LoginFormValues) => {
-    try {
-      const response = await fetch(apiUrl("/admin/login"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: data.email.trim(),
-          password: data.password,
-        }),
-      });
+    const loginUrl = apiUrl("/admin/login");
+    adminLoginDebug("admin login request started");
+    adminLoginDebug("API URL used", loginUrl);
 
-      const result = await response.json();
+    const result = await loginAdmin(data.email, data.password);
+    adminLoginDebug("admin login status code", result.status ?? "network-error");
 
-      if (!response.ok) {
-        const errorCode = result.error || "UNKNOWN_ERROR";
-        const errorMessages: Record<string, string> = {
-          INVALID_CREDENTIALS: "Invalid email or password",
-          PROFILE_NOT_FOUND: "Admin profile not found",
-          NOT_ADMIN: "User is not an admin",
-          ADMIN_BLOCKED: "Admin account is blocked or inactive",
-          SERVER_MISCONFIGURED: "Server configuration error. Please try again later.",
-          SERVER_ERROR: "Server error. Please try again later.",
-        };
-        const message = errorMessages[errorCode] || `Login failed: ${errorCode}`;
-        toast({
-          title: "Login Failed",
-          description: message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (result.ok && result.user_id && result.session) {
-        // Set Supabase auth session for frontend queries
-        const session = {
-          accessToken: result.session.access_token,
-          refreshToken: result.session.refresh_token,
-          expiresAt: result.session.expires_at,
-          user: {
-            id: result.user_id,
-            email: result.email || data.email.trim(),
-          },
-        };
-
-        if (session.accessToken && session.refreshToken) {
-          saveSupabaseAuthSession(session);
-          console.log("admin supabase session set");
-        } else {
-          console.error("Supabase auth session data is missing.");
-        }
-
-        // Store safe admin metadata in sessionStorage
-        const adminSession: AdminSession = {
-          user_id: result.user_id,
-          email: result.email || data.email.trim(),
-          role: "admin",
-          loggedInAt: new Date().toISOString(),
-        };
-        sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminSession));
-        console.log("admin login api success");
-        console.log("admin session stored");
-
-        // Reload the app shell so AuthProvider hydrates the newly saved admin session.
-        window.location.assign("/admin");
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "Unexpected response from server",
-          variant: "destructive",
-        });
-      }
-    } catch (err) {
-      console.error("Admin login error:", err);
+    if (!result.ok) {
       toast({
-        title: "Error",
-        description: "An error occurred. Please check your connection and try again.",
+        title: "Login Failed",
+        description: result.message || "Admin login failed. Please try again.",
         variant: "destructive",
       });
+      return;
     }
+
+    adminLoginDebug("admin session stored");
+    adminLoginDebug("navigating to /admin");
+    navigate("/admin", { replace: true });
   };
 
   return (

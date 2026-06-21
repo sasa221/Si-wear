@@ -72,7 +72,7 @@ interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
   login: (emailOrPhone: string, password: string) => Promise<boolean>;
-  loginAdmin: (emailOrPhone: string, password: string) => Promise<boolean>;
+  loginAdmin: (emailOrPhone: string, password: string) => Promise<AdminLoginResult>;
   signup: (name: string, phone: string, email: string, password: string) => Promise<SignupResult>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => void;
@@ -106,6 +106,26 @@ interface SignupResult {
   requiresEmailConfirmation?: boolean;
 }
 
+export interface AdminLoginResult {
+  ok: boolean;
+  status?: number;
+  message?: string;
+  error?: string;
+}
+
+type AdminLoginPayload = {
+  ok?: boolean;
+  user_id?: string;
+  email?: string;
+  error?: string;
+  message?: string;
+  session?: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+  };
+};
+
 function getAdminSessionData(): AdminSession | null {
   try {
     const stored = sessionStorage.getItem(ADMIN_SESSION_KEY);
@@ -128,6 +148,15 @@ function setAdminSessionData(session: AdminSession | null): void {
       sessionStorage.removeItem(ADMIN_SESSION_KEY);
     }
   } catch {}
+}
+
+function createAdminSession(userId: string, email: string): AdminSession {
+  return {
+    user_id: userId,
+    email,
+    role: "admin",
+    loggedInAt: new Date().toISOString(),
+  };
 }
 
 function rowToProfileUser(row: ProfileRow, authUser?: SupabaseAuthUser): User {
@@ -197,6 +226,48 @@ function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return "";
+}
+
+function safeApiErrorText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const text = value.trim();
+  if (!text || text.length > 200 || text.startsWith("<")) return "";
+  if (/(access_token|refresh_token|password|authorization|bearer\s+)/i.test(text)) return "";
+  return text;
+}
+
+const adminLoginErrorMessages: Record<string, string> = {
+  INVALID_CREDENTIALS: "Invalid email or password",
+  PROFILE_NOT_FOUND: "Admin profile not found",
+  NOT_ADMIN: "User is not an admin",
+  ADMIN_BLOCKED: "Admin account is blocked or inactive",
+  SERVER_MISCONFIGURED: "Server configuration error. Please try again later.",
+  SERVER_ERROR: "Server error. Please try again later.",
+};
+
+function getAdminLoginErrorMessage(payload: AdminLoginPayload, status?: number): string {
+  const message = safeApiErrorText(payload.message);
+  if (message) return message;
+
+  const errorCode = safeApiErrorText(payload.error);
+  if (errorCode) return adminLoginErrorMessages[errorCode] || `Login failed: ${errorCode}`;
+
+  return typeof status === "number"
+    ? `Admin login failed (HTTP ${status}).`
+    : "Admin API is not reachable. Please try again.";
+}
+
+async function readAdminLoginPayload(response: Response): Promise<AdminLoginPayload> {
+  const text = await response.text();
+  try {
+    return text ? JSON.parse(text) as AdminLoginPayload : {};
+  } catch {
+    return { message: safeApiErrorText(text) };
+  }
+}
+
+function isValidAdminProfile(profile: User): boolean {
+  return profile.isAdmin === true && profile.blocked !== true && profile.isActive !== false;
 }
 
 function getSignupErrorMessage(err: unknown): string {
@@ -376,8 +447,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         dbTouchUserLastLogin(profile.id).catch(err => console.error("Failed to update last login:", err));
         if (!cancelled) {
           const restoredAdminSession = getAdminSessionData();
-          if (profile.isAdmin && restoredAdminSession?.user_id === profile.id) {
-            setAdminSession(restoredAdminSession);
+          if (isValidAdminProfile(profile)) {
+            const nextAdminSession = restoredAdminSession?.user_id === profile.id
+              ? restoredAdminSession
+              : createAdminSession(profile.id, profile.email || authUser.email || "");
+            setAdminSessionData(nextAdminSession);
+            setAdminSession(nextAdminSession);
+            if (import.meta.env.PROD && restoredAdminSession?.user_id !== profile.id) {
+              console.log("[S! Wear] admin session repaired from valid Supabase admin profile");
+            }
           } else {
             setAdminSessionData(null);
             setAdminSession(null);
@@ -445,9 +523,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
-  const loginAdmin = async (emailOrPhone: string, password: string): Promise<boolean> => {
+  const loginAdmin = async (emailOrPhone: string, password: string): Promise<AdminLoginResult> => {
+    let response: Response;
     try {
-      const response = await fetch(apiUrl("/admin/login"), {
+      response = await fetch(apiUrl("/admin/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -455,10 +534,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password,
         }),
       });
+    } catch (err) {
+      console.error("Admin login request failed:", err);
+      return {
+        ok: false,
+        message: "Admin API is not reachable. Please try again.",
+      };
+    }
 
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result?.ok || !result?.user_id || !result?.session?.access_token) {
-        return false;
+    try {
+      const result = await readAdminLoginPayload(response);
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          error: result.error,
+          message: getAdminLoginErrorMessage(result, response.status),
+        };
+      }
+
+      if (!result?.ok || !result?.user_id || !result?.session?.access_token) {
+        return {
+          ok: false,
+          status: response.status,
+          error: result?.error,
+          message: getAdminLoginErrorMessage(
+            { ...result, message: result?.message || "Unexpected response from admin API." },
+            response.status
+          ),
+        };
       }
 
       const authUser: SupabaseAuthUser = {
@@ -472,12 +576,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: authUser,
       });
 
-      const nextAdminSession: AdminSession = {
-        user_id: result.user_id,
-        email: result.email || emailOrPhone.trim(),
-        role: "admin",
-        loggedInAt: new Date().toISOString(),
-      };
+      const nextAdminSession = createAdminSession(result.user_id, result.email || emailOrPhone.trim());
       setAdminSessionData(nextAdminSession);
       setAdminSession(nextAdminSession);
 
@@ -496,10 +595,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             createdAt: lastLoginAt,
             lastLoginAt,
           });
-      return true;
+      return { ok: true, status: response.status };
     } catch (err) {
       console.error("Admin login failed:", err);
-      return false;
+      return {
+        ok: false,
+        status: response.status,
+        message: "Admin login failed. Please try again.",
+      };
     }
   };
 

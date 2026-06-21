@@ -1,11 +1,9 @@
 import { getSupabaseAccessToken } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiConfig";
+
+export { apiUrl, REQUIRED_PRODUCTION_API_URL } from "@/lib/apiConfig";
 
 type ApiPayload = Record<string, any>;
-
-export function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
-  return base ? `${base}/api${path}` : `/api${path}`;
-}
 
 async function readPayload(res: Response): Promise<ApiPayload> {
   const text = await res.text();

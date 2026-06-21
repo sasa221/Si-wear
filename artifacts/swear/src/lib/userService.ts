@@ -9,6 +9,7 @@ import {
   supabaseConfigured,
   useDevOrderMock,
 } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiConfig";
 import type { ContactMessage, Notification, Order } from "@/lib/types";
 
 export const ACCOUNT_RESTRICTED_MESSAGE = "Your account is restricted. Please contact S! Wear support.";
@@ -69,11 +70,6 @@ export interface AdminUserStats {
 function throwProfileError(message: string): never {
   logSupabaseTableError(PROFILES_TABLE, message);
   throw new Error(formatSupabaseError(message, PROFILES_TABLE));
-}
-
-function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
-  return base ? `${base}/api${path}` : `/api${path}`;
 }
 
 async function readApiPayload(res: Response): Promise<AdminUsersApiPayload> {

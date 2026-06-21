@@ -19,6 +19,7 @@ import {
 import { getProductsAsync, saveProducts } from "@/hooks/useProducts";
 import { getCategoryNamesAsync } from "@/lib/categoryService";
 import { getSupabaseAccessToken, supabaseConfigured, uploadSupabaseStorageObject } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiConfig";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,11 +61,6 @@ function createLocalProductId(name: string): string {
 
 function buildSku(slug: string, color: string, size: string): string {
   return `${slug}-${slugify(color)}-${slugify(size)}`.toUpperCase();
-}
-
-function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
-  return base ? `${base}/api${path}` : `/api${path}`;
 }
 
 async function readApiPayload(res: Response): Promise<Record<string, unknown>> {

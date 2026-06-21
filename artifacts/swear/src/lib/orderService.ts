@@ -8,6 +8,7 @@ import {
   useDevOrderMock,
 } from './supabase';
 import { adminApiFetchJson, customerApiFetchJson } from './apiClient';
+import { apiUrl } from './apiConfig';
 import type {
   Notification,
   Order,
@@ -37,8 +38,7 @@ function throwDbError(table: string, message: string): never {
 }
 
 function orderApiUrl(): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '');
-  return base ? `${base}/api/orders/place` : '/api/orders/place';
+  return apiUrl('/orders/place');
 }
 
 async function placeOrderViaApi(orderPayload: Record<string, unknown>, itemsPayload: Record<string, unknown>[]): Promise<void> {

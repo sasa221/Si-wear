@@ -12,6 +12,7 @@ import {
   ProductVariant,
 } from "@/data/products";
 import { getSupabaseAccessToken, supabase, supabaseConfigured } from "@/lib/supabase";
+import { apiUrl } from "@/lib/apiConfig";
 import type { OrderItem } from "@/lib/types";
 
 const PRODUCTS_VERSION = "v6-uuid-variants";
@@ -117,11 +118,6 @@ export function getCategoryImages(): Record<string, string> {
 
 export function saveCategoryImages(images: Record<string, string>): void {
   localStorage.setItem("swear_category_images", JSON.stringify(images));
-}
-
-function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
-  return base ? `${base}/api${path}` : `/api${path}`;
 }
 
 async function readApiPayload(res: Response): Promise<ProductApiPayload> {

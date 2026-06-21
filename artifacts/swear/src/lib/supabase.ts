@@ -1,3 +1,5 @@
+import { apiUrl } from "@/lib/apiConfig";
+
 function normalizeSupabaseUrl(value: string | undefined): string | undefined {
   return value?.replace(/\/+$/, '').replace(/\/rest\/v1$/i, '');
 }
@@ -150,11 +152,6 @@ function authHeaders(accessToken?: string): Record<string, string> {
 
 function authUrl(path: string): string {
   return `${supabaseUrl}/auth/v1${path}`;
-}
-
-function apiUrl(path: string): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '');
-  return base ? `${base}/api${path}` : `/api${path}`;
 }
 
 function encodeStoragePath(path: string): string {
