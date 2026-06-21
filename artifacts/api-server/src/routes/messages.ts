@@ -9,7 +9,7 @@ import {
   supabaseRequest,
   type AdminLocals,
   type SupabaseConfig,
-} from "../lib/supabaseAdmin";
+} from "../lib/supabaseAdmin.js";
 
 const router: IRouter = Router();
 const MESSAGE_STATUSES = new Set(["open", "customer_replied", "pending_admin", "admin_replied", "closed"]);

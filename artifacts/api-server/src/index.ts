@@ -1,5 +1,5 @@
-import app from "./app";
-import { logger } from "./lib/logger";
+import app from "./app.js";
+import { logger } from "./lib/logger.js";
 
 // Extract masked project ref from Supabase URL
 function maskProjectRef(url: string | undefined): string {

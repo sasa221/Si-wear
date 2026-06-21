@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { adminAuthMiddleware, getErrorStatus, supabaseRequest, type AdminLocals } from "../lib/supabaseAdmin";
+import { adminAuthMiddleware, getErrorStatus, supabaseRequest, type AdminLocals } from "../lib/supabaseAdmin.js";
 
 const router: IRouter = Router();
 
