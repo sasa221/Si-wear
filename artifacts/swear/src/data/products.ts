@@ -1,8 +1,8 @@
 export const PRODUCT_SIZES = ["S", "M", "L", "XL", "2XL"] as const;
 export const ALLOWED_CATEGORIES = ["T-Shirts", "Shirts", "Pants"] as const;
 
-export type ProductStatus = "active" | "draft";
-export type InventoryStatus = "active" | "draft" | "out_of_stock" | "low_stock";
+export type ProductStatus = "active" | "draft" | "archived";
+export type InventoryStatus = "active" | "draft" | "archived" | "out_of_stock" | "low_stock";
 
 export interface ProductVariant {
   id: string;
@@ -196,6 +196,7 @@ export function getTotalStock(product: Product): number {
 }
 
 export function getInventoryStatus(product: Product): InventoryStatus {
+  if (product.status === "archived") return "archived";
   if (product.status === "draft") return "draft";
   const stock = getTotalStock(product);
   if (stock <= 0) return "out_of_stock";
@@ -205,6 +206,7 @@ export function getInventoryStatus(product: Product): InventoryStatus {
 
 export function getStockLabel(product: Product): string {
   const status = getInventoryStatus(product);
+  if (status === "archived") return "Archived";
   if (status === "draft") return "Draft";
   if (status === "out_of_stock") return "Out of stock";
   if (status === "low_stock") return "Low stock";

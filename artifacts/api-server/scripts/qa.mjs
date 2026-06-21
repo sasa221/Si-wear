@@ -12,6 +12,8 @@ const qa = {
   productId: crypto.randomUUID(),
   variantWhiteId: crypto.randomUUID(),
   variantBlackId: crypto.randomUUID(),
+  deleteProductId: crypto.randomUUID(),
+  deleteVariantId: crypto.randomUUID(),
   customerEmail: `qa-customer-${suffix}@example.com`,
   blockedEmail: `qa-blocked-${suffix}@example.com`,
   adminEmail: `qa-admin-${suffix}@example.com`,
@@ -258,6 +260,14 @@ async function cleanup() {
     method: "DELETE",
     headers: { Prefer: "return=minimal" },
   }));
+  await safe("delete variants", () => supabase(`/rest/v1/product_variants?product_id=eq.${encodeURIComponent(qa.deleteProductId)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  }));
+  await safe("delete product", () => supabase(`/rest/v1/products?id=eq.${encodeURIComponent(qa.deleteProductId)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  }));
   if (encodedUsers) {
     await safe("profiles", () => supabase(`/rest/v1/profiles?id=in.(${encodedUsers})`, {
       method: "DELETE",
@@ -478,6 +488,9 @@ async function testCatalogShippingDiscountSettings() {
   assert(publicVariants.some(variant => variant.id === qa.variantWhiteId && variant.stock === 5), "In-stock variant missing or wrong.");
   assert(publicVariants.some(variant => variant.id === qa.variantBlackId && variant.stock === 0), "Out-of-stock variant missing.");
 
+  let adminProducts = await api("/admin/products", { token: state.adminToken });
+  assert(adminProducts.payload.products?.some(product => product.id === qa.productId), "Default admin products did not include active product.");
+
   await api(`/admin/products/variants/${encodeURIComponent(qa.variantWhiteId)}`, {
     method: "PATCH",
     token: state.adminToken,
@@ -490,12 +503,72 @@ async function testCatalogShippingDiscountSettings() {
   });
   publicProducts = await api("/products");
   assert(!publicProducts.payload.products?.some(product => product.id === qa.productId), "Draft product leaked to public products.");
+  adminProducts = await api("/admin/products", { token: state.adminToken });
+  assert(adminProducts.payload.products?.some(product => product.id === qa.productId), "Default admin products should include draft products.");
   await api(`/admin/products/${encodeURIComponent(qa.productId)}/status`, {
     method: "PATCH",
     token: state.adminToken,
     body: { status: "active" },
   });
-  pass("products and inventory lifecycle");
+
+  await api(`/admin/products/${encodeURIComponent(qa.productId)}/archive`, {
+    method: "POST",
+    token: state.adminToken,
+  });
+  publicProducts = await api("/products");
+  assert(!publicProducts.payload.products?.some(product => product.id === qa.productId), "Archived product leaked to public products.");
+  adminProducts = await api("/admin/products", { token: state.adminToken });
+  assert(!adminProducts.payload.products?.some(product => product.id === qa.productId), "Archived product appeared in default admin products.");
+  const archivedProducts = await api("/admin/products?status=archived", { token: state.adminToken });
+  assert(archivedProducts.payload.products?.some(product => product.id === qa.productId && product.status === "archived"), "Archived product missing from Archived admin filter.");
+  await api(`/admin/products/${encodeURIComponent(qa.productId)}/restore`, {
+    method: "POST",
+    token: state.adminToken,
+  });
+  publicProducts = await api("/products");
+  assert(publicProducts.payload.products?.some(product => product.id === qa.productId), "Restored product did not return to public products.");
+  adminProducts = await api("/admin/products", { token: state.adminToken });
+  assert(adminProducts.payload.products?.some(product => product.id === qa.productId), "Restored product did not return to default admin products.");
+
+  await api("/admin/products/sync", {
+    method: "POST",
+    token: state.adminToken,
+    body: {
+      product: {
+        id: qa.deleteProductId,
+        name: "QA Delete Tee",
+        slug: `qa-delete-tee-${suffix}`,
+        category: "T-Shirts",
+        price_egp: 199,
+        description: "QA product for permanent delete.",
+        images: [],
+        status: "active",
+        is_new: false,
+        is_best_seller: false,
+      },
+      variants: [{
+        id: qa.deleteVariantId,
+        product_id: qa.deleteProductId,
+        size: "M",
+        color: "Black",
+        stock: 2,
+        sku: `qa-delete-${suffix}`,
+        active: true,
+        created_at: new Date().toISOString(),
+      }],
+      removedVariantIds: [],
+    },
+  });
+  const permanentDelete = await api(`/admin/products/${encodeURIComponent(qa.deleteProductId)}`, {
+    method: "DELETE",
+    token: state.adminToken,
+  });
+  assert(permanentDelete.payload.action === "deleted", "Product without orders was not permanently deleted.");
+  const deletedProductRows = await supabase(`/rest/v1/products?id=eq.${encodeURIComponent(qa.deleteProductId)}&select=id`);
+  const deletedVariantRows = await supabase(`/rest/v1/product_variants?product_id=eq.${encodeURIComponent(qa.deleteProductId)}&select=id`);
+  assert(deletedProductRows.length === 0 && deletedVariantRows.length === 0, "Permanent delete left product or variants behind.");
+
+  pass("products inventory archive restore permanent delete lifecycle");
 
   const zone = await api("/admin/shipping-zones", {
     method: "POST",
@@ -719,7 +792,20 @@ async function testOrdersCancellationStock() {
 
   const notifications = await supabase(`/rest/v1/notifications?customer_id=eq.${encodeURIComponent(state.customerId)}&select=message,order_id`);
   assert(notifications.some(row => row.order_id === qa.orderA), "Order/cancellation notification was not created.");
-  pass("orders, stock, cancellation, notes, notifications");
+
+  const historyDelete = await api(`/admin/products/${encodeURIComponent(qa.productId)}`, {
+    method: "DELETE",
+    token: state.adminToken,
+  });
+  assert(historyDelete.payload.action === "archived" && historyDelete.payload.orderHistory === true, "Product with order history was not archived instead of deleted.");
+  const archivedProducts = await api("/admin/products?status=archived", { token: state.adminToken });
+  assert(archivedProducts.payload.products?.some(product => product.id === qa.productId), "Order-history product missing from Archived after delete attempt.");
+  const remainingVariants = await supabase(`/rest/v1/product_variants?product_id=eq.${encodeURIComponent(qa.productId)}&select=id`);
+  assert(remainingVariants.some(row => row.id === qa.variantWhiteId), "Order-history delete removed product variants.");
+  const remainingItems = await supabase(`/rest/v1/order_items?order_id=in.(${encodeURIComponent(qa.orderA)},${encodeURIComponent(qa.orderB)})&select=order_id,variant_id`);
+  assert(remainingItems.length === 2 && remainingItems.every(row => row.variant_id === qa.variantWhiteId), "Order-history delete changed order items.");
+
+  pass("orders, stock, cancellation, notes, notifications, order-history product archive");
 }
 
 async function testMessagesAndReturns() {

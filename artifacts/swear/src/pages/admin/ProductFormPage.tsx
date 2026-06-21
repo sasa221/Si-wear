@@ -37,7 +37,7 @@ const productSchema = z.object({
     "Choose an allowed category"
   ),
   price: z.coerce.number().min(1, "Price must be positive"),
-  status: z.enum(["active", "draft"]),
+  status: z.enum(["active", "draft", "archived"]),
   description: z.string().min(1, "Description is required"),
   isNew: z.boolean(),
   isBestSeller: z.boolean(),
@@ -223,7 +223,7 @@ export default function ProductFormPage() {
     if (!isAdmin) { setLocation("/admin/login"); return; }
     let cancelled = false;
 
-    Promise.all([getCategoryNamesAsync(true), getProductsAsync({ admin: true })])
+    Promise.all([getCategoryNamesAsync(true), getProductsAsync({ admin: true, includeArchived: true })])
       .then(([cats, stored]) => {
         if (cancelled) return;
         setCategories(cats);
@@ -482,6 +482,7 @@ export default function ProductFormPage() {
                       <select className="flex h-10 w-full rounded-none border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" style={{ fontSize: "16px" }} {...field}>
                         <option value="active">Active</option>
                         <option value="draft">Draft</option>
+                        <option value="archived">Archived</option>
                       </select>
                     </FormControl>
                     <FormMessage />

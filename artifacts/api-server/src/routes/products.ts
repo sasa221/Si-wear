@@ -9,12 +9,16 @@ type ProductRow = {
   category: string;
   price_egp: number;
   description: string;
-  images: string[];
-  status: "active" | "draft";
+  images: string[] | string | null;
+  status: ProductStatus;
+  active?: boolean | null;
   is_new?: boolean | null;
   is_best_seller?: boolean | null;
   created_at?: string;
 };
+
+type ProductStatus = "active" | "draft" | "archived";
+type ProductFilter = "public" | "admin-default" | "all" | ProductStatus;
 
 type ProductVariantRow = {
   id: string;
@@ -41,6 +45,21 @@ const PRODUCT_SELECT_WITH_FLAGS = [
   "created_at",
 ].join(",");
 
+const PRODUCT_SELECT_WITH_FLAGS_AND_ACTIVE = [
+  "id",
+  "name",
+  "slug",
+  "category",
+  "price_egp",
+  "description",
+  "images",
+  "status",
+  "active",
+  "is_new",
+  "is_best_seller",
+  "created_at",
+].join(",");
+
 const PRODUCT_SELECT_BASE = [
   "id",
   "name",
@@ -50,6 +69,19 @@ const PRODUCT_SELECT_BASE = [
   "description",
   "images",
   "status",
+  "created_at",
+].join(",");
+
+const PRODUCT_SELECT_BASE_AND_ACTIVE = [
+  "id",
+  "name",
+  "slug",
+  "category",
+  "price_egp",
+  "description",
+  "images",
+  "status",
+  "active",
   "created_at",
 ].join(",");
 
@@ -66,6 +98,10 @@ const VARIANT_SELECT = [
 
 const PRODUCT_FLAGS_MIGRATION_WARNING =
   "Product flags were not saved because products.is_new/is_best_seller columns are missing. Run artifacts/swear/supabase-product-flags-migration.sql.";
+const PRODUCT_ACTIVE_COLUMN_WARNING =
+  "products.active column is missing; product visibility uses products.status only.";
+const PRODUCT_ARCHIVED_STATUS_WARNING =
+  "products.status must allow 'archived'. Run artifacts/swear/supabase-product-archive-status-migration.sql.";
 
 function normalizeSupabaseUrl(value: string | undefined): string | undefined {
   return value?.replace(/\/+$/, "").replace(/\/rest\/v1$/i, "");
@@ -120,6 +156,32 @@ function isMissingProductFlagColumns(message: string): boolean {
   );
 }
 
+function isMissingColumn(message: string, column: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes(column.toLowerCase()) && (
+    normalized.includes("column") ||
+    normalized.includes("schema cache") ||
+    normalized.includes("pgrst204") ||
+    normalized.includes("could not find")
+  );
+}
+
+function isArchivedStatusUnsupported(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("archived") && (
+    normalized.includes("check constraint") ||
+    normalized.includes("violates") ||
+    normalized.includes("invalid input value") ||
+    normalized.includes("status")
+  );
+}
+
+function getErrorStatus(err: unknown): number {
+  return typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
+    ? (err as { status: number }).status
+    : 500;
+}
+
 async function requireAdminUserId(config: ReturnType<typeof getSupabaseConfig>, token: string): Promise<string> {
   const authRes = await fetch(`${config.url}/auth/v1/user`, {
     headers: {
@@ -170,6 +232,15 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === "string");
 }
 
+function parseProductStatus(value: unknown): ProductStatus | null {
+  const normalized = String(value || "").toLowerCase();
+  return normalized === "active" || normalized === "published"
+    ? "active"
+    : normalized === "draft" || normalized === "archived"
+      ? normalized
+      : null;
+}
+
 function parseProductRow(value: unknown): ProductRow {
   if (!value || typeof value !== "object") {
     throw Object.assign(new Error("Product payload is required."), { status: 400 });
@@ -183,7 +254,7 @@ function parseProductRow(value: unknown): ProductRow {
     typeof row.category !== "string" ||
     typeof row.description !== "string" ||
     !isStringArray(row.images) ||
-    !["active", "draft"].includes(String(row.status)) ||
+    !parseProductStatus(row.status) ||
     !Number.isFinite(Number(row.price_egp))
   ) {
     throw Object.assign(new Error("Invalid product payload."), { status: 400 });
@@ -197,7 +268,7 @@ function parseProductRow(value: unknown): ProductRow {
     price_egp: Math.max(1, Number(row.price_egp)),
     description: row.description,
     images: row.images,
-    status: row.status as "active" | "draft",
+    status: parseProductStatus(row.status) ?? "active",
     is_new: row.is_new === true,
     is_best_seller: row.is_best_seller === true,
   };
@@ -270,11 +341,24 @@ function productWithoutFlags(product: ProductRow): Omit<ProductRow, "is_new" | "
   return rest;
 }
 
+function parseImages(value: ProductRow["images"]): string[] {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
 function normalizeFetchedProduct(row: ProductRow): ProductRow {
+  const parsedStatus = parseProductStatus(row.status);
   return {
     ...row,
-    images: Array.isArray(row.images) ? row.images : [],
-    status: row.status === "draft" ? "draft" : "active",
+    images: parseImages(row.images),
+    status: parsedStatus ?? "active",
+    active: row.active === false ? false : true,
     is_new: row.is_new === true,
     is_best_seller: row.is_best_seller === true,
   };
@@ -306,38 +390,62 @@ async function upsertProduct(
 
 async function fetchProductRows(
   config: ReturnType<typeof getSupabaseConfig>,
-  activeOnly: boolean,
+  filter: ProductFilter,
 ): Promise<{ rows: ProductRow[]; warnings: string[] }> {
+  const warnings: string[] = [];
   const buildPath = (select: string) => {
     const params = [
       `select=${encodeURIComponent(select)}`,
       "order=created_at.desc",
-      ...(activeOnly ? ["status=eq.active"] : []),
     ];
     return `/rest/v1/products?${params.join("&")}`;
   };
 
-  try {
-    const rows = await supabaseRequest(config, buildPath(PRODUCT_SELECT_WITH_FLAGS), {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    return {
-      rows: Array.isArray(rows) ? rows.map(row => normalizeFetchedProduct(row as ProductRow)) : [],
-      warnings: [],
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!isMissingProductFlagColumns(message)) throw err;
+  const selectAttempts = [
+    PRODUCT_SELECT_WITH_FLAGS_AND_ACTIVE,
+    PRODUCT_SELECT_WITH_FLAGS,
+    PRODUCT_SELECT_BASE_AND_ACTIVE,
+    PRODUCT_SELECT_BASE,
+  ];
+
+  let rows: unknown = [];
+  let loaded = false;
+  for (const select of selectAttempts) {
+    try {
+      rows = await supabaseRequest(config, buildPath(select), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      loaded = true;
+      break;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const missingFlags = isMissingProductFlagColumns(message);
+      const missingActive = isMissingColumn(message, "active");
+      if (!missingFlags && !missingActive) throw err;
+      if (missingFlags && !warnings.includes(PRODUCT_FLAGS_MIGRATION_WARNING)) {
+        warnings.push(PRODUCT_FLAGS_MIGRATION_WARNING);
+      }
+      if (missingActive && !warnings.includes(PRODUCT_ACTIVE_COLUMN_WARNING)) {
+        warnings.push(PRODUCT_ACTIVE_COLUMN_WARNING);
+      }
+    }
   }
 
-  const rows = await supabaseRequest(config, buildPath(PRODUCT_SELECT_BASE), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  if (!loaded) {
+    throw Object.assign(new Error("Products could not be loaded."), { status: 500 });
+  }
+
+  const normalizedRows = Array.isArray(rows) ? rows.map(row => normalizeFetchedProduct(row as ProductRow)) : [];
   return {
-    rows: Array.isArray(rows) ? rows.map(row => normalizeFetchedProduct(row as ProductRow)) : [],
-    warnings: [PRODUCT_FLAGS_MIGRATION_WARNING],
+    rows: normalizedRows.filter(row => {
+      if (filter === "public") return row.status === "active" && row.active !== false;
+      if (filter === "admin-default") return row.status !== "archived";
+      if (filter === "all") return true;
+      if (filter === "active") return row.status === "active" && row.active !== false;
+      return row.status === filter;
+    }),
+    warnings,
   };
 }
 
@@ -361,9 +469,10 @@ async function fetchVariantRows(
   return Array.isArray(rows) ? rows as ProductVariantRow[] : [];
 }
 
-async function fetchProductDataset(config: ReturnType<typeof getSupabaseConfig>, activeOnly: boolean) {
-  const products = await fetchProductRows(config, activeOnly);
-  const variants = await fetchVariantRows(config, products.rows.map(row => row.id), activeOnly);
+async function fetchProductDataset(config: ReturnType<typeof getSupabaseConfig>, filter: ProductFilter) {
+  const products = await fetchProductRows(config, filter);
+  const activeVariantsOnly = filter === "public";
+  const variants = await fetchVariantRows(config, products.rows.map(row => row.id), activeVariantsOnly);
   return {
     products: products.rows,
     variants,
@@ -371,15 +480,157 @@ async function fetchProductDataset(config: ReturnType<typeof getSupabaseConfig>,
   };
 }
 
+async function fetchProductById(config: ReturnType<typeof getSupabaseConfig>, productId: string): Promise<ProductRow> {
+  const products = await fetchProductRows(config, "all");
+  const product = products.rows.find(row => row.id === productId);
+  if (!product) {
+    throw Object.assign(new Error("Product was not found."), { status: 404 });
+  }
+  return product;
+}
+
+async function patchProductById(
+  config: ReturnType<typeof getSupabaseConfig>,
+  productId: string,
+  body: Record<string, unknown>,
+): Promise<{ product: ProductRow; warnings: string[] }> {
+  const warnings: string[] = [];
+  const patch = async (payload: Record<string, unknown>) => {
+    return supabaseRequest(config, `/rest/v1/products?id=eq.${encodeURIComponent(productId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify(payload),
+    });
+  };
+
+  let rows: unknown;
+  try {
+    rows = await patch(body);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if ("active" in body && isMissingColumn(message, "active")) {
+      warnings.push(PRODUCT_ACTIVE_COLUMN_WARNING);
+      const { active: _active, ...withoutActive } = body;
+      try {
+        rows = await patch(withoutActive);
+      } catch (retryErr) {
+        const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        if (withoutActive.status === "archived" && isArchivedStatusUnsupported(retryMessage)) {
+          throw Object.assign(new Error(PRODUCT_ARCHIVED_STATUS_WARNING), { status: 500 });
+        }
+        throw retryErr;
+      }
+    } else if (body.status === "archived" && isArchivedStatusUnsupported(message)) {
+      throw Object.assign(new Error(PRODUCT_ARCHIVED_STATUS_WARNING), { status: 500 });
+    } else {
+      throw err;
+    }
+  }
+
+  const product = Array.isArray(rows) ? rows[0] as ProductRow | undefined : undefined;
+  if (!product) {
+    throw Object.assign(new Error("Product was not found."), { status: 404 });
+  }
+
+  return { product: normalizeFetchedProduct(product), warnings };
+}
+
+async function setProductArchived(
+  config: ReturnType<typeof getSupabaseConfig>,
+  productId: string,
+): Promise<{ product: ProductRow; warnings: string[] }> {
+  await fetchProductById(config, productId);
+  return patchProductById(config, productId, { status: "archived", active: false });
+}
+
+async function setProductRestored(
+  config: ReturnType<typeof getSupabaseConfig>,
+  productId: string,
+): Promise<{ product: ProductRow; warnings: string[] }> {
+  await fetchProductById(config, productId);
+  return patchProductById(config, productId, { status: "active", active: true });
+}
+
+async function fetchProductVariantsForDelete(
+  config: ReturnType<typeof getSupabaseConfig>,
+  productId: string,
+): Promise<ProductVariantRow[]> {
+  return fetchVariantRows(config, [productId], false);
+}
+
+async function productHasOrderHistory(
+  config: ReturnType<typeof getSupabaseConfig>,
+  productId: string,
+  variantIds: string[],
+): Promise<boolean> {
+  const byProduct = await supabaseRequest(
+    config,
+    `/rest/v1/order_items?product_id=eq.${encodeURIComponent(productId)}&select=id&limit=1`,
+    { method: "GET", headers: { Accept: "application/json" } },
+  );
+  if (Array.isArray(byProduct) && byProduct.length > 0) return true;
+  if (variantIds.length === 0) return false;
+
+  const encodedIds = variantIds.map(id => encodeURIComponent(id)).join(",");
+  const byVariant = await supabaseRequest(
+    config,
+    `/rest/v1/order_items?variant_id=in.(${encodedIds})&select=id&limit=1`,
+    { method: "GET", headers: { Accept: "application/json" } },
+  );
+  return Array.isArray(byVariant) && byVariant.length > 0;
+}
+
+function productImageStoragePath(config: ReturnType<typeof getSupabaseConfig>, imageUrl: string): string | null {
+  const value = imageUrl.trim();
+  if (!value) return null;
+  if (value.startsWith("products/")) return value;
+
+  try {
+    const url = new URL(value);
+    const supabaseUrl = new URL(config.url);
+    if (url.host !== supabaseUrl.host) return null;
+
+    const marker = "/storage/v1/object/public/product-images/";
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+
+    const encodedPath = url.pathname.slice(markerIndex + marker.length);
+    return encodedPath ? decodeURIComponent(encodedPath) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function deleteProductImages(
+  config: ReturnType<typeof getSupabaseConfig>,
+  images: string[],
+): Promise<string[]> {
+  const paths = [...new Set(images.map(image => productImageStoragePath(config, image)).filter((path): path is string => !!path))];
+  if (paths.length === 0) return [];
+
+  const response = await fetch(`${config.url}/storage/v1/object/product-images`, {
+    method: "DELETE",
+    headers: {
+      apikey: config.serviceRoleKey,
+      Authorization: `Bearer ${config.serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prefixes: paths }),
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    return [`Storage delete failed: ${errorMessage(payload, response.statusText || "Storage delete failed.")}`];
+  }
+  return [];
+}
+
 router.get("/products", async (req, res) => {
   try {
     const config = getSupabaseConfig();
-    const dataset = await fetchProductDataset(config, true);
+    const dataset = await fetchProductDataset(config, "public");
     return res.json(dataset);
   } catch (err) {
-    const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
-      ? (err as { status: number }).status
-      : 500;
+    const status = getErrorStatus(err);
     const message = err instanceof Error ? err.message : "Products could not be loaded.";
     req.log.error({ err: message, status }, "public products fetch failed");
     return res.status(status).json({ error: "PRODUCTS_FETCH_FAILED", message });
@@ -395,13 +646,19 @@ router.get("/admin/products", async (req, res) => {
     }
 
     const adminUserId = await requireAdminUserId(config, token);
-    const dataset = await fetchProductDataset(config, false);
+    const requestedStatus = typeof req.query.status === "string" ? req.query.status.toLowerCase() : "";
+    const includeArchived = req.query.includeArchived === "true";
+    const filter: ProductFilter =
+      requestedStatus === "active" || requestedStatus === "draft" || requestedStatus === "archived"
+        ? requestedStatus
+        : requestedStatus === "all" || includeArchived
+          ? "all"
+          : "admin-default";
+    const dataset = await fetchProductDataset(config, filter);
     req.log.info({ admin_user_id: adminUserId, products: dataset.products.length }, "admin products fetched");
     return res.json(dataset);
   } catch (err) {
-    const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
-      ? (err as { status: number }).status
-      : 500;
+    const status = getErrorStatus(err);
     const message = err instanceof Error ? err.message : "Products could not be loaded.";
     req.log.error({ err: message, status }, "admin products fetch failed");
     return res.status(status).json({ error: "PRODUCTS_FETCH_FAILED", message });
@@ -447,9 +704,7 @@ router.post("/admin/products/sync", async (req, res) => {
     req.log.info({ admin_user_id: adminUserId, product_id: product.id, variants: variants.length }, "product synced");
     return res.json({ ok: true, warnings });
   } catch (err) {
-    const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
-      ? (err as { status: number }).status
-      : 500;
+    const status = getErrorStatus(err);
     const message = err instanceof Error ? err.message : "Product sync failed.";
     req.log.error({ err: message, status }, "product sync failed");
     return res.status(status).json({ error: "PRODUCT_SYNC_FAILED", message });
@@ -465,26 +720,129 @@ router.patch("/admin/products/:id/status", async (req, res) => {
     }
 
     const status = req.body?.status;
-    if (!["active", "draft"].includes(String(status))) {
-      return res.status(400).json({ error: "INVALID_PRODUCT_STATUS", message: "Product status must be active or draft." });
+    const nextStatus = parseProductStatus(status);
+    if (!nextStatus) {
+      return res.status(400).json({ error: "INVALID_PRODUCT_STATUS", message: "Product status must be active, draft, or archived." });
     }
 
     const adminUserId = await requireAdminUserId(config, token);
-    await supabaseRequest(config, `/rest/v1/products?id=eq.${encodeURIComponent(req.params.id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ status }),
-    });
+    const body: Record<string, unknown> = { status: nextStatus };
+    if (nextStatus === "archived") body.active = false;
+    if (nextStatus === "active") body.active = true;
+    const result = await patchProductById(config, req.params.id, body);
 
-    req.log.info({ admin_user_id: adminUserId, product_id: req.params.id, status }, "product status updated");
-    return res.json({ ok: true });
+    req.log.info({ admin_user_id: adminUserId, product_id: req.params.id, status: nextStatus }, "product status updated");
+    return res.json({ ok: true, product: result.product, warnings: result.warnings });
   } catch (err) {
-    const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
-      ? (err as { status: number }).status
-      : 500;
+    const status = getErrorStatus(err);
     const message = err instanceof Error ? err.message : "Product status update failed.";
     req.log.error({ err: message, status }, "product status update failed");
     return res.status(status).json({ error: "PRODUCT_STATUS_FAILED", message });
+  }
+});
+
+router.post("/admin/products/:id/archive", async (req, res) => {
+  try {
+    const config = getSupabaseConfig();
+    const token = getBearerToken(req.header("authorization"));
+    if (!token) {
+      return res.status(401).json({ error: "ADMIN_LOGIN_REQUIRED", message: "Admin login is required to archive products." });
+    }
+
+    const adminUserId = await requireAdminUserId(config, token);
+    const result = await setProductArchived(config, req.params.id);
+    req.log.info({ admin_user_id: adminUserId, product_id: req.params.id }, "product archived");
+    return res.json({
+      ok: true,
+      action: "archived",
+      product: result.product,
+      warnings: result.warnings,
+      message: "Product archived.",
+    });
+  } catch (err) {
+    const status = getErrorStatus(err);
+    const message = err instanceof Error ? err.message : "Product archive failed.";
+    req.log.error({ err: message, status }, "product archive failed");
+    return res.status(status).json({ error: status === 404 ? "PRODUCT_NOT_FOUND" : "PRODUCT_ARCHIVE_FAILED", message });
+  }
+});
+
+router.post("/admin/products/:id/restore", async (req, res) => {
+  try {
+    const config = getSupabaseConfig();
+    const token = getBearerToken(req.header("authorization"));
+    if (!token) {
+      return res.status(401).json({ error: "ADMIN_LOGIN_REQUIRED", message: "Admin login is required to restore products." });
+    }
+
+    const adminUserId = await requireAdminUserId(config, token);
+    const result = await setProductRestored(config, req.params.id);
+    req.log.info({ admin_user_id: adminUserId, product_id: req.params.id }, "product restored");
+    return res.json({
+      ok: true,
+      action: "restored",
+      product: result.product,
+      warnings: result.warnings,
+      message: "Product restored.",
+    });
+  } catch (err) {
+    const status = getErrorStatus(err);
+    const message = err instanceof Error ? err.message : "Product restore failed.";
+    req.log.error({ err: message, status }, "product restore failed");
+    return res.status(status).json({ error: status === 404 ? "PRODUCT_NOT_FOUND" : "PRODUCT_RESTORE_FAILED", message });
+  }
+});
+
+router.delete("/admin/products/:id", async (req, res) => {
+  try {
+    const config = getSupabaseConfig();
+    const token = getBearerToken(req.header("authorization"));
+    if (!token) {
+      return res.status(401).json({ error: "ADMIN_LOGIN_REQUIRED", message: "Admin login is required to delete products." });
+    }
+
+    const adminUserId = await requireAdminUserId(config, token);
+    const product = await fetchProductById(config, req.params.id);
+    const variants = await fetchProductVariantsForDelete(config, req.params.id);
+    const hasOrderHistory = await productHasOrderHistory(config, req.params.id, variants.map(variant => variant.id));
+
+    if (hasOrderHistory) {
+      const archived = await setProductArchived(config, req.params.id);
+      req.log.info({ admin_user_id: adminUserId, product_id: req.params.id }, "product archived instead of deleted because order history exists");
+      return res.json({
+        ok: true,
+        action: "archived",
+        orderHistory: true,
+        product: archived.product,
+        warnings: archived.warnings,
+        message: "Product archived because it has order history.",
+      });
+    }
+
+    await supabaseRequest(config, `/rest/v1/product_variants?product_id=eq.${encodeURIComponent(req.params.id)}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+    await supabaseRequest(config, `/rest/v1/products?id=eq.${encodeURIComponent(req.params.id)}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+    const storageWarnings = await deleteProductImages(config, parseImages(product.images));
+
+    req.log.info({ admin_user_id: adminUserId, product_id: req.params.id, storage_warnings: storageWarnings.length }, "product permanently deleted");
+    return res.json({
+      ok: true,
+      action: "deleted",
+      storageWarnings,
+      message: storageWarnings.length > 0
+        ? "Product permanently deleted. Some storage files could not be removed."
+        : "Product permanently deleted.",
+    });
+  } catch (err) {
+    const status = getErrorStatus(err);
+    const message = err instanceof Error ? err.message : "Product delete failed.";
+    req.log.error({ err: message, status }, "product delete failed");
+    return res.status(status).json({ error: status === 404 ? "PRODUCT_NOT_FOUND" : "PRODUCT_DELETE_FAILED", message });
   }
 });
 
@@ -521,9 +879,7 @@ router.patch("/admin/products/variants/:id", async (req, res) => {
     req.log.info({ admin_user_id: adminUserId, variant_id: req.params.id, body }, "variant inventory updated");
     return res.json({ ok: true });
   } catch (err) {
-    const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
-      ? (err as { status: number }).status
-      : 500;
+    const status = getErrorStatus(err);
     const message = err instanceof Error ? err.message : "Inventory update failed.";
     req.log.error({ err: message, status }, "variant inventory update failed");
     return res.status(status).json({ error: "INVENTORY_UPDATE_FAILED", message });

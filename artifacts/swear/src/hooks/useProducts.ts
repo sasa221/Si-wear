@@ -27,7 +27,8 @@ type ProductRow = {
   price_egp: number;
   description: string;
   images: string[] | string | null;
-  status: "active" | "draft";
+  status: Product["status"];
+  active?: boolean | null;
   is_new?: boolean | null;
   is_best_seller?: boolean | null;
   created_at: string;
@@ -45,16 +46,32 @@ type ProductVariantRow = {
 };
 
 type ProductApiPayload = {
+  ok?: boolean;
+  action?: "archived" | "deleted" | "restored";
+  orderHistory?: boolean;
+  product?: ProductRow;
   products?: ProductRow[];
   variants?: ProductVariantRow[];
+  storageWarnings?: string[];
   warnings?: string[];
   message?: string;
   error?: string;
 };
 
+type ProductStatusFilter = "all" | "active" | "draft" | "archived";
+
 type ProductLoadOptions = {
   activeOnly?: boolean;
   admin?: boolean;
+  status?: ProductStatusFilter;
+  includeArchived?: boolean;
+};
+
+export type ProductDeleteResult = {
+  action: "archived" | "deleted";
+  orderHistory?: boolean;
+  message?: string;
+  storageWarnings?: string[];
 };
 
 export interface StockCheckItem {
@@ -145,8 +162,12 @@ async function fetchProductsFromApi(options: ProductLoadOptions): Promise<Produc
   const admin = options.admin === true;
   const activeOnly = options.activeOnly !== false;
   const token = getSupabaseAccessToken();
+  const adminParams = new URLSearchParams();
+  if (options.status && options.status !== "all") adminParams.set("status", options.status);
+  if (options.includeArchived) adminParams.set("includeArchived", "true");
+  const adminQuery = adminParams.toString();
   const path = admin
-    ? "/admin/products"
+    ? `/admin/products${adminQuery ? `?${adminQuery}` : ""}`
     : `/products?activeOnly=${activeOnly ? "true" : "false"}`;
 
   if (admin && !token) {
@@ -175,19 +196,25 @@ async function fetchProductsFromApi(options: ProductLoadOptions): Promise<Produc
   return (payload.products ?? []).map(row => rowToProduct(row, variantsByProduct.get(row.id) ?? []));
 }
 
-async function productApiPatch(path: string, body: Record<string, unknown>, fallback: string): Promise<void> {
+async function productApiRequest(
+  path: string,
+  init: RequestInit,
+  fallback: string
+): Promise<ProductApiPayload> {
   const token = getSupabaseAccessToken();
   if (!token) throw new Error("Admin login is required. Sign in again.");
 
   let response: Response;
   try {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    if (init.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
     response = await fetch(apiUrl(path), {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      ...init,
+      headers,
     });
   } catch {
     throw new Error("Product API is not reachable. Start the API server and try again.");
@@ -197,6 +224,15 @@ async function productApiPatch(path: string, body: Record<string, unknown>, fall
   if (!response.ok) {
     throw new Error(apiMessage(payload, fallback));
   }
+  return payload;
+}
+
+async function productApiPatch(path: string, body: Record<string, unknown>, fallback: string): Promise<void> {
+  await productApiRequest(
+    path,
+    { method: "PATCH", body: JSON.stringify(body) },
+    fallback
+  );
 }
 
 function findCartVariant(products: Product[], item: StockCheckItem) {
@@ -283,8 +319,14 @@ export async function getProductsAsync(options: ProductLoadOptions = {}): Promis
   return fetchProductsFromApi({ ...options, activeOnly: options.activeOnly !== false });
 }
 
+function requireProductApi(): void {
+  if (!supabaseConfigured || !supabase) {
+    throw new Error("Product API is required for admin product changes.");
+  }
+}
+
 export async function setProductStatusAsync(productId: string, status: Product["status"]): Promise<void> {
-  if (!supabaseConfigured || !supabase) return;
+  requireProductApi();
   await productApiPatch(
     `/admin/products/${encodeURIComponent(productId)}/status`,
     { status },
@@ -292,11 +334,45 @@ export async function setProductStatusAsync(productId: string, status: Product["
   );
 }
 
+export async function archiveProductAsync(productId: string): Promise<void> {
+  requireProductApi();
+  await productApiRequest(
+    `/admin/products/${encodeURIComponent(productId)}/archive`,
+    { method: "POST" },
+    "Failed to archive product."
+  );
+}
+
+export async function restoreProductAsync(productId: string): Promise<void> {
+  requireProductApi();
+  await productApiRequest(
+    `/admin/products/${encodeURIComponent(productId)}/restore`,
+    { method: "POST" },
+    "Failed to restore product."
+  );
+}
+
+export async function deleteProductAsync(productId: string): Promise<ProductDeleteResult> {
+  requireProductApi();
+  const payload = await productApiRequest(
+    `/admin/products/${encodeURIComponent(productId)}`,
+    { method: "DELETE" },
+    "Failed to delete product."
+  );
+
+  return {
+    action: payload.action === "deleted" ? "deleted" : "archived",
+    orderHistory: payload.orderHistory === true,
+    message: payload.message,
+    storageWarnings: payload.storageWarnings,
+  };
+}
+
 export async function updateVariantInventoryAsync(
   variantId: string,
   update: { stock?: number; active?: boolean }
 ): Promise<void> {
-  if (!supabaseConfigured || !supabase) return;
+  requireProductApi();
   await productApiPatch(
     `/admin/products/variants/${encodeURIComponent(variantId)}`,
     update,

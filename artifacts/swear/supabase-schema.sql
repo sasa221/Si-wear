@@ -12,7 +12,8 @@ create table if not exists products (
   price_egp integer not null check (price_egp > 0),
   description text not null default '',
   images jsonb not null default '[]'::jsonb,
-  status text not null default 'active' check (status in ('active', 'draft')),
+  status text not null default 'active' check (status in ('active', 'draft', 'archived')),
+  active boolean not null default true,
   is_new boolean not null default false,
   is_best_seller boolean not null default false,
   created_at timestamptz default now()
@@ -32,6 +33,7 @@ create table if not exists product_variants (
 
 alter table products add column if not exists is_new boolean not null default false;
 alter table products add column if not exists is_best_seller boolean not null default false;
+alter table products add column if not exists active boolean not null default true;
 
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -565,7 +567,13 @@ end $$;
 -- Tighten legacy broad policies now that the app uses Supabase Auth tokens.
 -- These ALTER POLICY statements are non-destructive: they only change access rules.
 alter policy "Allow all on products" on products
-  using (status = 'active' or public.is_admin())
+  using (
+    public.is_admin()
+    or (
+      status = 'active'
+      and coalesce(active, true) = true
+    )
+  )
   with check (public.is_admin());
 
 alter policy "Allow all on product_variants" on product_variants
@@ -577,6 +585,7 @@ alter policy "Allow all on product_variants" on product_variants
         select 1 from products
         where products.id = product_variants.product_id
           and products.status = 'active'
+          and coalesce(products.active, true) = true
       )
     )
   )
