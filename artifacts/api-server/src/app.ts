@@ -4,6 +4,7 @@ import pinoHttpModule from "pino-http";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 
+// Vercel NodeNext marker: this file must compile with explicit .js relative imports.
 type RequestWithId = Request & { id?: unknown };
 
 const pinoHttp = (
