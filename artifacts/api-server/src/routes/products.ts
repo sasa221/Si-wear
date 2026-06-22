@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { setPublicReadCache } from "../lib/cacheHeaders.js";
 
 const router: IRouter = Router();
 
@@ -628,6 +629,7 @@ router.get("/products", async (req, res) => {
   try {
     const config = getSupabaseConfig();
     const dataset = await fetchProductDataset(config, "public");
+    setPublicReadCache(res);
     return res.json(dataset);
   } catch (err) {
     const status = getErrorStatus(err);

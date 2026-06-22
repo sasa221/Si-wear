@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getProductsAsync } from "@/hooks/useProducts";
 import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
+import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
 
 const FALLBACK_IMAGES: Record<string, string> = {
@@ -18,10 +19,14 @@ const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
 export default function HomePage() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setProductsLoading(true);
+    setCategoriesLoading(true);
     getProductsAsync({ activeOnly: true })
       .then(products => {
         if (!cancelled) {
@@ -30,6 +35,9 @@ export default function HomePage() {
       })
       .catch(err => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load products.");
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false);
       });
     getCategoriesAsync()
       .then(items => {
@@ -37,6 +45,9 @@ export default function HomePage() {
       })
       .catch(err => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load categories.");
+      })
+      .finally(() => {
+        if (!cancelled) setCategoriesLoading(false);
       });
     return () => { cancelled = true; };
   }, []);
@@ -132,16 +143,19 @@ export default function HomePage() {
       )}
 
       {/* ── Category Cards ── */}
-      {categoryCards.length > 0 && (
+      {(categoriesLoading || categoryCards.length > 0) && (
         <section className="py-8 md:py-12" style={{ background: "#0a0a0a" }}>
           <div className="max-w-[1280px] mx-auto px-4">
             <div className={`grid gap-3 sm:gap-4 ${
+              categoriesLoading ? "grid-cols-2 sm:grid-cols-3" :
               categoryCards.length === 1 ? "grid-cols-1 max-w-xs mx-auto" :
               categoryCards.length === 2 ? "grid-cols-2" :
               categoryCards.length === 3 ? "grid-cols-2 sm:grid-cols-3" :
               "grid-cols-2 lg:grid-cols-4"
             }`}>
-              {categoryCards.map((cat, i) => (
+              {categoriesLoading ? Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="bg-[#111] animate-pulse" style={{ aspectRatio: "3/4" }} />
+              )) : categoryCards.map((cat, i) => (
                 <motion.div
                   key={cat.label}
                   initial={{ opacity: 0, y: 16 }}
@@ -186,7 +200,7 @@ export default function HomePage() {
       )}
 
       {/* ── Latest Drops ── */}
-      {latestDrops.length > 0 && (
+      {(productsLoading || latestDrops.length > 0) && (
         <section className="py-8 md:py-12" style={{ background: "#111111" }}>
           <div className="max-w-[1280px] mx-auto px-4">
             <div className="flex items-baseline justify-between mb-5 md:mb-8">
@@ -203,13 +217,13 @@ export default function HomePage() {
                 VIEW ALL →
               </Link>
             </div>
-            <ProductGrid products={latestDrops} />
+            {productsLoading ? <ProductGridSkeleton count={4} /> : <ProductGrid products={latestDrops} />}
           </div>
         </section>
       )}
 
       {/* ── Best Sellers ── */}
-      {bestSellers.length > 0 && (
+      {(productsLoading || bestSellers.length > 0) && (
         <section className="py-8 md:py-12" style={{ background: "#000000" }}>
           <div className="max-w-[1280px] mx-auto px-4">
             <div className="flex items-baseline justify-between mb-5 md:mb-8">
@@ -226,7 +240,7 @@ export default function HomePage() {
                 VIEW ALL →
               </Link>
             </div>
-            <ProductGrid products={bestSellers} />
+            {productsLoading ? <ProductGridSkeleton count={4} /> : <ProductGrid products={bestSellers} />}
           </div>
         </section>
       )}

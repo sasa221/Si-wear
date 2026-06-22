@@ -135,7 +135,14 @@ function CategoryRow({ category, productCount, image, onFileChange, onImageChang
         >
           {image ? (
             <>
-              <img src={image} alt={category.name} className="w-full h-full object-cover" />
+              <img
+                src={image}
+                alt={category.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                width={64}
+                height={80}
+              />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Upload size={16} className="text-primary" />
               </div>

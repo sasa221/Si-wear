@@ -3,7 +3,8 @@ import { useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { getProductsAsync } from "@/hooks/useProducts";
 import { ProductGrid } from "@/components/products/ProductGrid";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
+import { ChevronDown } from "lucide-react";
 import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
 
 const FIXED_TABS = ["All", ...ALLOWED_CATEGORIES];
@@ -131,9 +132,11 @@ export default function ShopPage() {
         )}
 
         {loading ? (
-          <div className="py-24 flex items-center justify-center gap-3 text-muted-foreground">
-            <Loader2 size={18} className="animate-spin" />
-            <span className="uppercase tracking-widest text-sm">Loading products...</span>
+          <div className="space-y-5">
+            <div className="py-3 text-muted-foreground">
+              <span className="uppercase tracking-widest text-sm">Loading products...</span>
+            </div>
+            <ProductGridSkeleton count={8} />
           </div>
         ) : (
           <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />

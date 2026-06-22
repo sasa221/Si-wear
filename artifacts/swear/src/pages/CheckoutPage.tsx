@@ -409,6 +409,8 @@ export default function CheckoutPage() {
                       alt={item.productName || item.product.name}
                       className="w-full h-full object-cover opacity-80"
                       loading="lazy"
+                      width={64}
+                      height={80}
                       onError={useFallbackImage}
                     />
                     <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary text-black text-[9px] font-bold flex items-center justify-center">

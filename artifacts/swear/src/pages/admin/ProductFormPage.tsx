@@ -588,7 +588,15 @@ export default function ProductFormPage() {
                       {images.map((src, i) => (
                         <div key={i} className={`relative group border ${i === 0 ? "border-primary" : "border-border"}`}>
                           <div style={{ aspectRatio: "4/5" }}>
-                            <img src={src} alt={`Product image ${i + 1}`} className="w-full h-full object-cover" loading="lazy" onError={useFallbackImage} />
+                            <img
+                              src={src}
+                              alt={`Product image ${i + 1}`}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              width={160}
+                              height={200}
+                              onError={useFallbackImage}
+                            />
                           </div>
                           {i === 0 && (
                             <span className="absolute top-1 left-1 bg-primary text-black text-[9px] font-black px-1 py-0.5 uppercase">MAIN</span>

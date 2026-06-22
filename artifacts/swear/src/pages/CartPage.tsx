@@ -65,6 +65,8 @@ export default function CartPage() {
                       alt={item.productName || item.product.name}
                       className="w-full h-full object-cover"
                       loading="lazy"
+                      width={96}
+                      height={128}
                       onError={useFallbackImage}
                     />
                   </div>

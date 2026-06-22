@@ -206,6 +206,8 @@ export default function AdminProductsPage() {
                         alt={product.name}
                         className="w-full h-full object-cover"
                         loading="lazy"
+                        width={40}
+                        height={52}
                         onError={useFallbackImage}
                       />
                     </div>

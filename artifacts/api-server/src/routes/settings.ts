@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { setPublicReadCache } from "../lib/cacheHeaders.js";
 
 const router: IRouter = Router();
 const SETTINGS_ID = "default";
@@ -141,7 +142,9 @@ async function getSettings(config: ReturnType<typeof getSupabaseConfig>) {
 router.get("/settings", async (_req, res) => {
   try {
     const config = getSupabaseConfig();
-    return res.json({ settings: await getSettings(config) });
+    const settings = await getSettings(config);
+    setPublicReadCache(res);
+    return res.json({ settings });
   } catch (err) {
     const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"
       ? (err as { status: number }).status

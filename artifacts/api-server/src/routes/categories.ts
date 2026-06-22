@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { adminAuthMiddleware, getErrorStatus, getSupabaseConfig, supabaseRequest, type AdminLocals } from "../lib/supabaseAdmin.js";
+import { setPublicReadCache } from "../lib/cacheHeaders.js";
 
 const router: IRouter = Router();
 
@@ -177,6 +178,7 @@ router.get("/categories", async (_req, res) => {
       method: "GET",
       headers: { Accept: "application/json" },
     });
+    setPublicReadCache(res);
     return res.json({ categories: Array.isArray(rows) ? rows.map(row => normalizeCategory(row as Record<string, any>)) : [] });
   } catch (err) {
     const status = getErrorStatus(err);

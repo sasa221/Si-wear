@@ -361,6 +361,8 @@ export function Header() {
                             alt={product.name}
                             className="w-full h-full object-cover"
                             loading="lazy"
+                            width={64}
+                            height={80}
                             onError={useFallbackImage}
                           />
                         </div>

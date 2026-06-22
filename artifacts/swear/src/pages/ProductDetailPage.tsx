@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { getProductByIdOrSlug, getProductsAsync } from "@/hooks/useProducts";
+import { getProductsAsync } from "@/hooks/useProducts";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { Minus, Plus, ChevronLeft, Loader2 } from "lucide-react";
@@ -35,12 +35,10 @@ export default function ProductDetailPage() {
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    Promise.all([
-      getProductByIdOrSlug(id),
-      getProductsAsync({ activeOnly: true }),
-    ])
-      .then(([found, products]) => {
+    getProductsAsync({ activeOnly: true })
+      .then(products => {
         if (cancelled) return;
+        const found = products.find(item => item.id === id || item.slug === id) ?? null;
         const allowedProduct = found && ALLOWED_CATEGORY_SET.has(found.category) ? found : null;
         setProduct(allowedProduct);
         setRelatedProducts(
@@ -193,7 +191,15 @@ export default function ProductDetailPage() {
         <div className="flex flex-col gap-3">
           {/* Main image */}
           <div className="w-full bg-card border border-border overflow-hidden" style={{ aspectRatio: "4/5" }}>
-            <img src={mainImage} alt={product.name} className="w-full h-full object-cover" onError={useFallbackImage} />
+            <img
+              src={mainImage}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              loading="eager"
+              width={800}
+              height={1000}
+              onError={useFallbackImage}
+            />
           </div>
           {/* Thumbnails */}
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -209,6 +215,8 @@ export default function ProductDetailPage() {
                   alt={`${product.name} view ${i + 1}`}
                   className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity"
                   loading="lazy"
+                  width={240}
+                  height={300}
                   onError={useFallbackImage}
                 />
               </button>

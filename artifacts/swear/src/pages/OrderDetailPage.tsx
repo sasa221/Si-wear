@@ -220,6 +220,8 @@ export default function OrderDetailPage() {
                       alt={item.productName}
                       className="h-full w-full object-cover"
                       loading="lazy"
+                      width={64}
+                      height={72}
                       onError={useFallbackImage}
                     />
                   </div>

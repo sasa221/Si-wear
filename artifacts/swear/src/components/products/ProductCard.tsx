@@ -19,6 +19,9 @@ export function ProductCard({ product }: { product: Product }) {
           alt={product.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
+          width={480}
+          height={600}
+          sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
           onError={useFallbackImage}
         />
 
