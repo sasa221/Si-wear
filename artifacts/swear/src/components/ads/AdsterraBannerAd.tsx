@@ -21,8 +21,6 @@ const EXCLUDED_ROUTE_PREFIXES: string[] = [
   "/order",
 ];
 
-
-
 const VARIANT_OPTIONS: Record<AdsterraBannerVariant, AdsterraAtOptions> = {
   "728x90": {
     key: "22f2562a18ec8f3ee1e8d25348108a18",
@@ -44,6 +42,13 @@ function routeIsExcluded(pathname: string) {
   return EXCLUDED_ROUTE_PREFIXES.some(prefix => pathname.startsWith(prefix));
 }
 
+function safeInvokeWarn(message: string) {
+  // dev-safe console warnings only
+  if (typeof window !== "undefined" && window?.console?.warn) {
+    window.console.warn(`[AdsterraBannerAd] ${message}`);
+  }
+}
+
 export default function AdsterraBannerAd({
   variant,
   className,
@@ -62,13 +67,12 @@ export default function AdsterraBannerAd({
     return base.replace(/[^a-zA-Z0-9\-_]/g, "");
   }, [atOptions.height, atOptions.key, atOptions.width]);
 
-  const injectedOnceRef = useRef(false);
-  const [blocked, setBlocked] = useState(false);
+  const mountedRef = useRef(false);
+  const [failed, setFailed] = useState(false);
 
+  // Remount/route change support by clearing per-wrapper content.
   useEffect(() => {
     if (excluded) return;
-    if (injectedOnceRef.current) return;
-
     if (typeof document === "undefined") return;
 
     const wrapperEl = document.getElementById(wrapperId);
@@ -78,46 +82,20 @@ export default function AdsterraBannerAd({
     wrapperEl.style.width = `${atOptions.width}px`;
     wrapperEl.style.height = `${atOptions.height}px`;
 
-    // Avoid duplicate script injection per ad slot.
-    if (document.getElementById(wrapperId + "-script")) {
-      injectedOnceRef.current = true;
-      return;
+    // Clear old injected nodes to avoid duplicate scripts.
+    // (Provider renders into this wrapper.)
+    while (wrapperEl.firstChild) {
+      wrapperEl.removeChild(wrapperEl.firstChild);
     }
 
-    injectedOnceRef.current = true;
+    // Avoid endlessly appending external scripts.
+    // We'll still append fresh for each mount, but we ensure we don't stack multiple wrapper-specific invoke scripts.
+    const existingInvokeScript = document.getElementById(wrapperId + "-invoke");
+    if (existingInvokeScript) {
+      existingInvokeScript.remove();
+    }
 
-    // Adsterra iframe invoke snippet (script+calling atOptions).
-    // We must not guess domain beyond the snippet; therefore this uses the standard Adsterra
-    // invoke pattern with the provided key/format.
-    const script = document.createElement("script");
-    script.id = wrapperId + "-script";
-    script.type = "text/javascript";
-    script.async = true;
-
-    // Adsterra expected invoke URL.
-    // If the full copied snippet is different, user must provide it.
-    const invokeSrc = "https://www.adsterra.com/ads/scripts/invoke.js";
-
-    script.src = invokeSrc;
-
-    const timeout = window.setTimeout(() => {
-      setBlocked(true);
-    }, 2500);
-
-    const onLoadOrError = () => {
-      window.clearTimeout(timeout);
-      // If blocked, wrapper will likely stay empty; we still render reserve box.
-    };
-
-    script.onload = onLoadOrError;
-    script.onerror = () => {
-      window.clearTimeout(timeout);
-      setBlocked(true);
-    };
-
-    document.body.appendChild(script);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Clear atOptions global (provider relies on window.atOptions)
     const w = window as any;
     w.atOptions = {
       key: atOptions.key,
@@ -127,22 +105,67 @@ export default function AdsterraBannerAd({
       params: atOptions.params,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const invoke = w.__adsterra_invoke;
-    // Some snippets rely on invoke.js auto-executing into #wrapper.
-    // We keep fallback label if it doesn't.
-    if (typeof invoke === "function") {
-      try {
-        invoke(wrapperEl);
-      } catch {
-        // ignore
-      }
-    }
+    // Exact inline snippet as provided.
+    // IMPORTANT: must set global window.atOptions AND inline atOptions = { ... }.
+    const atOptionsScript = document.createElement("script");
+    atOptionsScript.type = "text/javascript";
+    atOptionsScript.id = wrapperId + "-atOptions";
+    atOptionsScript.text = `
+<script>
+  atOptions = {
+    'key' : '${atOptions.key}',
+    'format' : 'iframe',
+    'height' : ${atOptions.height},
+    'width' : ${atOptions.width},
+    'params' : {}
+  };
+</script>
+`.replace("<script>", "").replace("</script>", "");
+
+    // Actually inject into document so the snippet runs in page context.
+    // The external script expects window.atOptions and uses the wrapper to render.
+
+    const injectContainer = document.body;
+
+    injectContainer.appendChild(atOptionsScript);
+
+    // External invoke snippet (exact URL)
+    const invokeScript = document.createElement("script");
+    invokeScript.type = "text/javascript";
+    invokeScript.async = true;
+    invokeScript.id = wrapperId + "-invoke";
+    invokeScript.src = `https://www.highperformanceformat.com/${atOptions.key}/invoke.js`;
+
+    const timeout = window.setTimeout(() => {
+      setFailed(true);
+      safeInvokeWarn(`script timeout for variant ${variant}`);
+    }, 3500);
+
+    invokeScript.onload = () => {
+      window.clearTimeout(timeout);
+      // Do not show placeholder text unless it fails after load.
+      // We keep reserved space; if provider doesn't render, it will remain empty.
+    };
+    invokeScript.onerror = () => {
+      window.clearTimeout(timeout);
+      setFailed(true);
+      safeInvokeWarn(`script error for variant ${variant}`);
+    };
+
+    // Append invoke after atOptions inline snippet.
+    injectContainer.appendChild(invokeScript);
+
+    mountedRef.current = true;
 
     return () => {
       window.clearTimeout(timeout);
+      // Remove injected scripts for this wrapper.
+      const s1 = document.getElementById(wrapperId + "-atOptions");
+      if (s1 && s1.parentNode) s1.parentNode.removeChild(s1);
+      const s2 = document.getElementById(wrapperId + "-invoke");
+      if (s2 && s2.parentNode) s2.parentNode.removeChild(s2);
     };
-  }, [atOptions, excluded, injectedOnceRef, wrapperId]);
+  }, [excluded, atOptions.height, atOptions.key, atOptions.params, atOptions.format, atOptions.width, variant, wrapperId]);
 
   if (excluded) return null;
 
@@ -163,18 +186,11 @@ export default function AdsterraBannerAd({
             maxWidth: "100%",
             overflow: "hidden",
           }}
-        >
-          {/* invoke.js will fill this. */}
-          {blocked && (
-            <div className="w-full h-full flex items-center justify-center text-[12px] text-zinc-500">
-              If ads are blocked, this area may stay empty.
-            </div>
-          )}
-        </div>
+        />
 
-        {variant === "728x90" && (
-          <div className="hidden md:block" />
-        )}
+        {failed ? null : null}
+
+        {variant === "728x90" && <div className="hidden md:block" />}
       </div>
     </section>
   );
