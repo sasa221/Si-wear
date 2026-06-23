@@ -6,7 +6,7 @@ import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { type Product } from "@/data/products";
-import ExternalNativeAd from "@/components/ads/ExternalNativeAd";
+import AdsterraBannerAd from "@/components/ads/AdsterraBannerAd";
 
 const FALLBACK_IMAGES: Record<string, string> = {
   "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
@@ -222,8 +222,10 @@ export default function HomePage() {
             </div>
             {productsLoading ? <ProductGridSkeleton count={4} /> : <ProductGrid products={latestDrops} />}
 
-            <div className="mt-10">
-              <ExternalNativeAd />
+            <div className="mt-10 flex justify-center">
+              <div className="hidden md:block">
+                <AdsterraBannerAd variant="728x90" />
+              </div>
             </div>
           </div>
         </section>

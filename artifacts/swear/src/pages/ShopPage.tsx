@@ -7,7 +7,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { ChevronDown } from "lucide-react";
 import { type Product } from "@/data/products";
-import ExternalNativeAd from "@/components/ads/ExternalNativeAd";
+import AdsterraBannerAd from "@/components/ads/AdsterraBannerAd";
 
 export default function ShopPage() {
   const searchString = useSearch();
@@ -142,8 +142,10 @@ export default function ShopPage() {
           <>
             <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
 
-            <div className="mt-10">
-              <ExternalNativeAd />
+            <div className="mt-10 flex justify-center">
+              <div className="hidden md:block">
+                <AdsterraBannerAd variant="728x90" />
+              </div>
             </div>
           </>
         )}
