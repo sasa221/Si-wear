@@ -1,5 +1,4 @@
 import {
-  ALLOWED_CATEGORIES,
   defaultProducts,
   defaultCategories,
   findVariant,
@@ -16,7 +15,7 @@ import { apiUrl } from "@/lib/apiConfig";
 import type { OrderItem } from "@/lib/types";
 
 const PRODUCTS_VERSION = "v6-uuid-variants";
-const CATEGORIES_VERSION = "v3-fixed";
+const CATEGORIES_VERSION = "v4-flexible";
 const CART_ITEM_UPDATED_MESSAGE = "This item was updated. Please remove it and add it again.";
 
 type ProductRow = {
@@ -106,7 +105,7 @@ export function getCategories(): string[] {
     const version = localStorage.getItem("swear_categories_version");
     if (version === CATEGORIES_VERSION) {
       const stored = localStorage.getItem("swear_categories");
-      if (stored) return (JSON.parse(stored) as string[]).filter(cat => ALLOWED_CATEGORIES.includes(cat as any));
+      if (stored) return (JSON.parse(stored) as string[]).filter(cat => typeof cat === "string" && cat.trim());
     }
   } catch {}
   localStorage.setItem("swear_categories", JSON.stringify(defaultCategories));
@@ -120,8 +119,7 @@ export function saveProducts(products: Product[]): void {
 }
 
 export function saveCategories(categories: string[]): void {
-  const fixed = categories.filter(cat => ALLOWED_CATEGORIES.includes(cat as any));
-  localStorage.setItem("swear_categories", JSON.stringify(fixed));
+  localStorage.setItem("swear_categories", JSON.stringify(categories.filter(cat => typeof cat === "string" && cat.trim())));
   localStorage.setItem("swear_categories_version", CATEGORIES_VERSION);
 }
 

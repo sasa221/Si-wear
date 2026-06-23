@@ -13,7 +13,7 @@ import { dbCreateContactMessage } from "@/lib/contactService";
 import { SUPABASE_NOT_CONNECTED_MESSAGE, supabaseConfigured, useDevOrderMock } from "@/lib/supabase";
 import { ACCOUNT_RESTRICTED_MESSAGE, dbGetCurrentUserAccountStatus } from "@/lib/userService";
 import { defaultStoreSettings, getStoreSettings, type StoreSettings } from "@/lib/storeSettings";
-import { Facebook, Instagram, Loader2, MapPin, Phone } from "lucide-react";
+import { Facebook, Instagram, Loader2, MapPin, Music, Phone } from "lucide-react";
 
 const CONTACT_LAST_SENT_KEY = "swear_contact_last_sent";
 const CONTACT_SIGNATURES_KEY = "swear_contact_signatures";
@@ -73,6 +73,11 @@ export default function ContactPage() {
 
   if (!user) return null;
   const accountRestricted = user.blocked === true || user.isActive === false;
+  const socialLinks = [
+    { label: "Instagram", href: settings.instagramUrl, icon: <Instagram size={24} /> },
+    { label: "TikTok", href: settings.tiktokUrl, icon: <Music size={24} /> },
+    { label: "Facebook", href: settings.facebookUrl, icon: <Facebook size={24} /> },
+  ].filter(link => link.href);
 
   const onSubmit = async (data: ContactFormValues) => {
     setSuccessMessage("");
@@ -186,15 +191,18 @@ export default function ContactPage() {
           <div>
             <h2 className="text-3xl font-display uppercase text-white mb-6">SOCIAL</h2>
             <div className="flex gap-4">
-              <a href={settings.instagramUrl || "#"} className="w-14 h-14 bg-card border border-border flex items-center justify-center text-white hover:text-primary hover:border-primary transition-all" aria-label="Instagram">
-                <Instagram size={24} />
-              </a>
-              <a href={settings.tiktokUrl || "#"} className="w-14 h-14 bg-card border border-border flex items-center justify-center text-white hover:text-primary hover:border-primary transition-all" aria-label="TikTok">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
-              </a>
-              <a href={settings.facebookUrl || "#"} className="w-14 h-14 bg-card border border-border flex items-center justify-center text-white hover:text-primary hover:border-primary transition-all" aria-label="Facebook">
-                <Facebook size={24} />
-              </a>
+              {socialLinks.map(link => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-14 h-14 bg-card border border-border flex items-center justify-center text-white hover:text-primary hover:border-primary transition-all"
+                  aria-label={link.label}
+                >
+                  {link.icon}
+                </a>
+              ))}
             </div>
           </div>
         </div>

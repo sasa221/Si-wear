@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { setPublicReadCache } from "../lib/cacheHeaders.js";
+import { setNoStore } from "../lib/cacheHeaders.js";
 
 const router: IRouter = Router();
 const SETTINGS_ID = "default";
@@ -58,6 +58,42 @@ function errorMessage(payload: unknown, fallback: string): string {
       .join(" ") || fallback;
   }
   return fallback;
+}
+
+function normalizeSocialUrl(value: string, platform: "instagram" | "tiktok" | "facebook"): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      return new URL(trimmed).toString();
+    } catch {
+      return trimmed;
+    }
+  }
+
+  const handle = trimmed.replace(/^@+/, "").replace(/^\/+/, "").trim();
+  if (trimmed.startsWith("@") && handle) {
+    if (platform === "instagram") return `https://instagram.com/${encodeURIComponent(handle)}`;
+    if (platform === "tiktok") return `https://www.tiktok.com/@${encodeURIComponent(handle)}`;
+    return `https://facebook.com/${encodeURIComponent(handle)}`;
+  }
+
+  if (/^(www\.)?(instagram|facebook|tiktok)\.com\//i.test(trimmed)) {
+    return `https://${trimmed.replace(/^\/+/, "")}`;
+  }
+
+  if (platform === "instagram" && /^[a-z0-9._]+$/i.test(trimmed)) {
+    return `https://instagram.com/${encodeURIComponent(trimmed)}`;
+  }
+  if (platform === "tiktok" && /^[a-z0-9._]+$/i.test(trimmed)) {
+    return `https://www.tiktok.com/@${encodeURIComponent(trimmed)}`;
+  }
+  if (platform === "facebook" && /^[a-z0-9.]+$/i.test(trimmed)) {
+    return `https://facebook.com/${encodeURIComponent(trimmed)}`;
+  }
+
+  return trimmed;
 }
 
 async function supabaseRequest(config: ReturnType<typeof getSupabaseConfig>, path: string, init: RequestInit): Promise<unknown> {
@@ -119,9 +155,9 @@ function cleanSettings(body: Record<string, unknown>) {
     brand_name: pick("brand_name", DEFAULT_SETTINGS.brand_name),
     whatsapp_number: pick("whatsapp_number", DEFAULT_SETTINGS.whatsapp_number).replace(/[^\d]/g, ""),
     announcement_bar_text: pick("announcement_bar_text", ""),
-    instagram_url: pick("instagram_url", ""),
-    tiktok_url: pick("tiktok_url", ""),
-    facebook_url: pick("facebook_url", ""),
+    instagram_url: normalizeSocialUrl(pick("instagram_url", ""), "instagram"),
+    tiktok_url: normalizeSocialUrl(pick("tiktok_url", ""), "tiktok"),
+    facebook_url: normalizeSocialUrl(pick("facebook_url", ""), "facebook"),
     store_location: pick("store_location", DEFAULT_SETTINGS.store_location),
     shipping_note: pick("shipping_note", DEFAULT_SETTINGS.shipping_note),
     returns_policy_text: pick("returns_policy_text", DEFAULT_SETTINGS.returns_policy_text),
@@ -143,7 +179,7 @@ router.get("/settings", async (_req, res) => {
   try {
     const config = getSupabaseConfig();
     const settings = await getSettings(config);
-    setPublicReadCache(res);
+    setNoStore(res);
     return res.json({ settings });
   } catch (err) {
     const status = typeof err === "object" && err !== null && "status" in err && typeof (err as { status?: unknown }).status === "number"

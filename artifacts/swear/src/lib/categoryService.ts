@@ -1,17 +1,18 @@
-import { ALLOWED_CATEGORIES } from "@/data/products";
 import { adminApiFetchJson, apiFetchJson } from "@/lib/apiClient";
 import { SUPABASE_NOT_CONNECTED_MESSAGE, supabaseConfigured, useDevOrderMock } from "@/lib/supabase";
 
 const CATEGORIES_KEY = "swear_categories";
 const CATEGORIES_VERSION_KEY = "swear_categories_version";
-const CATEGORIES_VERSION = "v3-fixed";
+const CATEGORIES_VERSION = "v4-flexible";
 const CATEGORY_IMAGES_KEY = "swear_category_images";
+const DEFAULT_LOCAL_CATEGORIES = ["T-Shirts", "Shirts", "Pants"];
 
 type CategoryRow = {
   id: string;
   slug: string;
   name: string;
   cover_image_url: string | null;
+  cover_image?: string | null;
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -35,12 +36,13 @@ export type CategoryRecord = {
 export type CategoryInput = {
   id?: string;
   name: string;
+  slug?: string;
   coverImageUrl?: string | null;
   active?: boolean;
   sortOrder?: number;
 };
 
-function slugify(value: string): string {
+export function slugifyCategory(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -58,7 +60,7 @@ function rowToCategory(row: CategoryRow): CategoryRecord {
     id: row.id,
     slug: row.slug,
     name: row.name,
-    coverImageUrl: row.cover_image_url,
+    coverImageUrl: row.cover_image_url ?? row.cover_image ?? null,
     active: row.active !== false,
     sortOrder: Number(row.sort_order) || 0,
     createdAt: row.created_at,
@@ -68,7 +70,7 @@ function rowToCategory(row: CategoryRow): CategoryRecord {
 function categoryToRow(input: CategoryInput): Record<string, unknown> {
   return {
     name: input.name.trim(),
-    slug: slugify(input.name),
+    slug: slugifyCategory(input.slug || input.name),
     cover_image_url: input.coverImageUrl?.trim() || null,
     active: input.active !== false,
     sort_order: Math.max(0, Math.round(Number(input.sortOrder) || 0)),
@@ -82,11 +84,11 @@ function readLocalCategoryNames(): string[] {
     if (version === CATEGORIES_VERSION && stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        return parsed.filter(cat => (ALLOWED_CATEGORIES as readonly string[]).includes(cat));
+        return parsed.filter(cat => typeof cat === "string" && cat.trim());
       }
     }
   } catch {}
-  const defaults = [...ALLOWED_CATEGORIES];
+  const defaults = [...DEFAULT_LOCAL_CATEGORIES];
   localStorage.setItem(CATEGORIES_KEY, JSON.stringify(defaults));
   localStorage.setItem(CATEGORIES_VERSION_KEY, CATEGORIES_VERSION);
   return defaults;
@@ -104,8 +106,7 @@ function readLocalImages(): Record<string, string> {
 function writeLocalCategories(categories: CategoryRecord[]) {
   const activeNames = categories
     .filter(category => category.active)
-    .map(category => category.name)
-    .filter(name => (ALLOWED_CATEGORIES as readonly string[]).includes(name));
+    .map(category => category.name);
   const images = categories.reduce<Record<string, string>>((acc, category) => {
     if (category.coverImageUrl) acc[category.name] = category.coverImageUrl;
     return acc;
@@ -120,9 +121,9 @@ function getLocalCategories(includeInactive = false): CategoryRecord[] {
   const names = readLocalCategoryNames();
   const images = readLocalImages();
   const now = new Date(0).toISOString();
-  const categories = (ALLOWED_CATEGORIES as readonly string[]).map((name, index) => ({
-    id: slugify(name),
-    slug: slugify(name),
+  const categories = names.map((name, index) => ({
+    id: slugifyCategory(name),
+    slug: slugifyCategory(name),
     name,
     coverImageUrl: images[name] ?? null,
     active: names.includes(name),
@@ -203,8 +204,8 @@ export async function setCategoryActive(id: string, active: boolean): Promise<vo
   }
 
   await adminApiFetchJson(
-    `/admin/categories/${encodeURIComponent(id)}`,
-    { method: "PATCH", body: JSON.stringify({ active: true }) },
+    `/admin/categories/${encodeURIComponent(id)}/restore`,
+    { method: "POST" },
     "Failed to activate category."
   );
 }

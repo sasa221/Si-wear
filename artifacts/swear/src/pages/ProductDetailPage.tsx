@@ -8,10 +8,8 @@ import { Minus, Plus, ChevronLeft, Loader2 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { ProductGrid } from "@/components/products/ProductGrid";
-import { ALLOWED_CATEGORIES, findVariant, getActiveVariants, getSizesForColor, type Product } from "@/data/products";
+import { findVariant, getActiveVariants, getSizesForColor, type Product } from "@/data/products";
 import { getProductImage, useFallbackImage } from "@/lib/images";
-
-const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -39,15 +37,13 @@ export default function ProductDetailPage() {
       .then(products => {
         if (cancelled) return;
         const found = products.find(item => item.id === id || item.slug === id) ?? null;
-        const allowedProduct = found && ALLOWED_CATEGORY_SET.has(found.category) ? found : null;
-        setProduct(allowedProduct);
+        setProduct(found);
         setRelatedProducts(
-          allowedProduct
+          found
             ? products
                 .filter(item =>
-                  item.id !== allowedProduct.id &&
-                  item.category === allowedProduct.category &&
-                  ALLOWED_CATEGORY_SET.has(item.category)
+                  item.id !== found.id &&
+                  item.category === found.category
                 )
                 .slice(0, 3)
             : []

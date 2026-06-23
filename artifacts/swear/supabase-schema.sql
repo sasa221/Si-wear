@@ -312,7 +312,7 @@ create table if not exists shipping_zones (
 
 create table if not exists categories (
   id uuid primary key default gen_random_uuid(),
-  name text not null unique check (name in ('T-Shirts', 'Shirts', 'Pants')),
+  name text not null unique,
   slug text not null,
   cover_image_url text,
   active boolean not null default true,
@@ -373,15 +373,14 @@ where slug is null or btrim(slug) = '';
 
 do $$
 begin
-  if not exists (
+  if exists (
     select 1
     from pg_constraint
     where conname = 'categories_name_allowed'
       and conrelid = 'public.categories'::regclass
   ) then
     alter table categories
-      add constraint categories_name_allowed
-      check (name in ('T-Shirts', 'Shirts', 'Pants')) not valid;
+      drop constraint categories_name_allowed;
   end if;
 end $$;
 

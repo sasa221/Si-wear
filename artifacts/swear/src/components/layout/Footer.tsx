@@ -1,7 +1,27 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Instagram, Music, MessageCircle } from "lucide-react";
+import { Facebook, Instagram, Music, MessageCircle } from "lucide-react";
+import { defaultStoreSettings, getStoreSettings, type StoreSettings } from "@/lib/storeSettings";
 
 export function Footer() {
+  const [settings, setSettings] = useState<StoreSettings>(defaultStoreSettings);
+
+  useEffect(() => {
+    let cancelled = false;
+    getStoreSettings()
+      .then(data => {
+        if (!cancelled) setSettings(data);
+      })
+      .catch(err => console.error("Failed to load store settings:", err));
+    return () => { cancelled = true; };
+  }, []);
+
+  const socialLinks = [
+    { label: "Instagram", href: settings.instagramUrl, icon: <Instagram size={18} /> },
+    { label: "TikTok", href: settings.tiktokUrl, icon: <Music size={18} /> },
+    { label: "Facebook", href: settings.facebookUrl, icon: <Facebook size={18} /> },
+  ].filter(link => link.href);
+
   return (
     <footer className="bg-background border-t border-border mt-12 md:mt-24">
       <div className="container py-12 md:py-16">
@@ -41,12 +61,18 @@ export function Footer() {
         <div className="border-t border-border mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">© 2025 S! Wear. Made in Egypt.</p>
           <div className="flex gap-4">
-            <a href="#" className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors" aria-label="Instagram">
-              <Instagram size={18} />
-            </a>
-            <a href="#" className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors" aria-label="TikTok">
-              <Music size={18} />
-            </a>
+            {socialLinks.map(link => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors"
+                aria-label={link.label}
+              >
+                {link.icon}
+              </a>
+            ))}
             <Link href="/custom-design" className="w-10 h-10 bg-card flex items-center justify-center rounded-none text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors" aria-label="Custom Design">
               <MessageCircle size={18} />
             </Link>

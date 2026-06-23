@@ -3,7 +3,6 @@ import { useLocation, useParams, Link } from "wouter";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import {
-  ALLOWED_CATEGORIES,
   PRODUCT_SIZES,
   Product,
   ProductStatus,
@@ -32,9 +31,9 @@ import { useFallbackImage } from "@/lib/images";
 
 const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  category: z.string().refine(
-    value => (ALLOWED_CATEGORIES as readonly string[]).includes(value),
-    "Choose an allowed category"
+  category: z.string().trim().min(1, "Choose a category").refine(
+    value => slugify(value) !== "custom-design",
+    "Custom Design stays separate from product categories"
   ),
   price: z.coerce.number().min(1, "Price must be positive"),
   status: z.enum(["active", "draft", "archived"]),
@@ -226,12 +225,12 @@ export default function ProductFormPage() {
     Promise.all([getCategoryNamesAsync(true), getProductsAsync({ admin: true, includeArchived: true })])
       .then(([cats, stored]) => {
         if (cancelled) return;
-        setCategories(cats);
         setProducts(stored);
 
         if (isEdit) {
           const prod = stored.find((p: Product) => p.id === params.id);
           if (prod) {
+            setCategories(cats.includes(prod.category) ? cats : [prod.category, ...cats]);
             form.reset({
               name: prod.name,
               category: prod.category,
@@ -250,8 +249,11 @@ export default function ProductFormPage() {
                 return acc;
               }, {})
             );
+          } else {
+            setCategories(cats);
           }
         } else {
+          setCategories(cats);
           form.setValue("category", cats[0] || "T-Shirts");
         }
       })

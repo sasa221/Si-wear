@@ -2,13 +2,11 @@ import { useEffect, useState, useMemo } from "react";
 import { useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { getProductsAsync } from "@/hooks/useProducts";
+import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { ChevronDown } from "lucide-react";
-import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
-
-const FIXED_TABS = ["All", ...ALLOWED_CATEGORIES];
-const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
+import { type Product } from "@/data/products";
 
 export default function ShopPage() {
   const searchString = useSearch();
@@ -18,6 +16,7 @@ export default function ShopPage() {
   const [category, setCategory] = useState(initialCategory);
   const [sort, setSort] = useState("newest");
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -25,10 +24,11 @@ export default function ShopPage() {
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
-    getProductsAsync({ activeOnly: true })
-      .then(products => {
+    Promise.all([getProductsAsync({ activeOnly: true }), getCategoriesAsync()])
+      .then(([products, cats]) => {
         if (!cancelled) {
-          setAllProducts(products.filter(product => ALLOWED_CATEGORY_SET.has(product.category)));
+          setAllProducts(products);
+          setCategories(cats);
         }
       })
       .catch(err => {
@@ -41,12 +41,11 @@ export default function ShopPage() {
   }, []);
 
   const dynamicCategories = useMemo(() => {
-    const cats = [...new Set(allProducts.map(product => product.category))];
-    return FIXED_TABS.filter(t => t === "All" || cats.includes(t));
-  }, [allProducts]);
+    return ["All", ...categories.filter(item => item.active).map(item => item.name)];
+  }, [categories]);
 
   const filteredProducts = useMemo(() => {
-    let result = category === "All" || !ALLOWED_CATEGORY_SET.has(category)
+    let result = category === "All"
       ? allProducts
       : allProducts.filter(p => p.category === category);
     if (sort === "price-low") {

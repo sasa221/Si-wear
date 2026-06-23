@@ -30,6 +30,7 @@ const qa = {
   discountPercent: `QAPCT${suffix.replace(/[^a-z0-9]/gi, "").slice(-8)}`.toUpperCase(),
   discountExpired: `QAEXP${suffix.replace(/[^a-z0-9]/gi, "").slice(-8)}`.toUpperCase(),
   zoneGov: `QA Governorate ${suffix}`,
+  hoodieSlug: `hoodies-${suffix.replace(/[^a-z0-9]/gi, "").toLowerCase()}`,
 };
 
 const state = {
@@ -47,6 +48,7 @@ const state = {
   discountExpiredId: "",
   shippingZoneId: "",
   contactMessageId: "",
+  categoryIds: [],
   warnings: [],
   passed: [],
 };
@@ -252,6 +254,12 @@ async function cleanup() {
       headers: { Prefer: "return=minimal" },
     }));
   }
+  for (const categoryId of state.categoryIds) {
+    await safe(`category ${categoryId}`, () => supabase(`/rest/v1/categories?id=eq.${encodeURIComponent(categoryId)}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    }));
+  }
   await safe("variants", () => supabase(`/rest/v1/product_variants?product_id=eq.${encodeURIComponent(qa.productId)}`, {
     method: "DELETE",
     headers: { Prefer: "return=minimal" },
@@ -427,19 +435,74 @@ async function testAdminAuthAndUsers() {
 async function testCatalogShippingDiscountSettings() {
   const categories = await api("/categories");
   assert(categories.payload.categories?.some(cat => cat.name === "T-Shirts"), "Public categories missing T-Shirts.");
+  const hoodieName = categories.payload.categories?.some(cat => cat.name === "Hoodies")
+    ? `Hoodies QA ${suffix}`
+    : "Hoodies";
 
   await api("/admin/categories", {
     method: "POST",
     token: state.adminToken,
     body: { name: "T-Shirts", active: true, sort_order: 1 },
+    expectStatus: 409,
   });
+  const hoodie = await api("/admin/categories", {
+    method: "POST",
+    token: state.adminToken,
+    body: {
+      name: hoodieName,
+      slug: qa.hoodieSlug,
+      active: true,
+      sort_order: 50,
+      cover_image_url: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop",
+    },
+  });
+  assert(hoodie.payload.category?.id, "Hoodies category was not created.");
+  state.categoryIds.push(hoodie.payload.category.id);
+
+  await api("/admin/categories", {
+    method: "POST",
+    token: state.adminToken,
+    body: { name: `Duplicate ${hoodieName}`, slug: qa.hoodieSlug, active: true },
+    expectStatus: 409,
+  });
+  let publicCategories = await api("/categories");
+  assert(publicCategories.payload.categories?.some(cat => cat.id === hoodie.payload.category.id && cat.name === hoodieName), "Public categories did not include active Hoodies category.");
+
+  const updatedCoverImage = "https://images.unsplash.com/photo-1578681994506-b8f463449011?w=600&h=750&fit=crop";
+  const imageUpdate = await api(`/admin/categories/${encodeURIComponent(hoodie.payload.category.id)}/image`, {
+    method: "POST",
+    token: state.adminToken,
+    body: { cover_image_url: updatedCoverImage },
+  });
+  assert(
+    String(imageUpdate.payload.category?.cover_image_url || "").startsWith(updatedCoverImage) &&
+      String(imageUpdate.payload.category?.cover_image_url || "").includes("v="),
+    "Category image update did not return a cache-busted image URL.",
+  );
+
+  await api(`/admin/categories/${encodeURIComponent(hoodie.payload.category.id)}/deactivate`, {
+    method: "POST",
+    token: state.adminToken,
+  });
+  publicCategories = await api("/categories");
+  assert(!publicCategories.payload.categories?.some(cat => cat.id === hoodie.payload.category.id), "Deactivated category leaked to public categories.");
+
+  await api(`/admin/categories/${encodeURIComponent(hoodie.payload.category.id)}/restore`, {
+    method: "POST",
+    token: state.adminToken,
+  });
+  publicCategories = await api("/categories");
+  assert(publicCategories.payload.categories?.some(cat => cat.id === hoodie.payload.category.id), "Restored category did not return to public categories.");
+
   await api("/admin/categories", {
     method: "POST",
     token: state.adminToken,
     body: { name: "Custom Design", active: true },
     expectStatus: 400,
   });
-  pass("categories allowed/rejected");
+  publicCategories = await api("/categories");
+  assert(!publicCategories.payload.categories?.some(cat => String(cat.slug).toLowerCase() === "custom-design"), "Custom Design appeared as a public product category.");
+  pass("categories create image duplicate deactivate restore rejected");
 
   await api("/admin/products/sync", {
     method: "POST",
@@ -656,12 +719,18 @@ async function testCatalogShippingDiscountSettings() {
       brand_name: "S! Wear QA",
       whatsapp_number: "201000000000",
       announcement_bar_text: `QA announcement ${suffix}`,
+      instagram_url: "instagram.com/siwearqa",
+      tiktok_url: "@siwearqa",
+      facebook_url: "facebook.com/siwearqa",
       support_info: "+20 100 000 0000",
     },
   });
   const publicSettings = await api("/settings");
   assert(publicSettings.payload.settings?.announcement_bar_text?.includes("QA announcement"), "Settings did not persist publicly.");
-  pass("settings save/public read");
+  assert(publicSettings.payload.settings?.instagram_url === "https://instagram.com/siwearqa", "Instagram URL was not normalized.");
+  assert(publicSettings.payload.settings?.tiktok_url === "https://www.tiktok.com/@siwearqa", "TikTok URL was not normalized.");
+  assert(publicSettings.payload.settings?.facebook_url === "https://facebook.com/siwearqa", "Facebook URL was not normalized.");
+  pass("settings save/public read/social normalization");
 }
 
 async function variantStock() {

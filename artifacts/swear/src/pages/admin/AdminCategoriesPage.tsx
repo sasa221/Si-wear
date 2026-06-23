@@ -3,12 +3,13 @@ import { useLocation } from "wouter";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { getProductsAsync } from "@/hooks/useProducts";
-import { ALLOWED_CATEGORIES, slugify, type Product } from "@/data/products";
+import { type Product } from "@/data/products";
 import {
   getCategoriesAsync,
   saveCategory,
   saveCategoryImage,
   setCategoryActive,
+  slugifyCategory,
   type CategoryRecord,
 } from "@/lib/categoryService";
 import { supabaseConfigured, uploadSupabaseStorageObject } from "@/lib/supabase";
@@ -54,7 +55,7 @@ const DEFAULT_IMAGES: Record<string, string> = {
 function storagePathForCategory(file: File, category: CategoryRecord): string {
   const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "").toLowerCase() || "jpg";
   const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `categories/${slugify(category.name)}-${id}.${extension}`;
+  return `categories/${category.slug || slugifyCategory(category.name)}-${id}.${extension}`;
 }
 
 interface CategoryRowProps {
@@ -63,19 +64,27 @@ interface CategoryRowProps {
   image: string;
   onFileChange: (file: File) => Promise<void>;
   onImageChange: (img: string | null) => Promise<void>;
+  onDetailsChange: (name: string, slug: string) => Promise<void>;
   onSetActive: (active: boolean) => Promise<void>;
   onSortChange: (sortOrder: number) => Promise<void>;
-  canDeactivate: boolean;
 }
 
-function CategoryRow({ category, productCount, image, onFileChange, onImageChange, onSetActive, onSortChange, canDeactivate }: CategoryRowProps) {
+function CategoryRow({ category, productCount, image, onFileChange, onImageChange, onDetailsChange, onSetActive, onSortChange }: CategoryRowProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [urlMode, setUrlMode] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [detailsSaving, setDetailsSaving] = useState(false);
   const [sortSaving, setSortSaving] = useState(false);
+  const [nameDraft, setNameDraft] = useState(category.name);
+  const [slugDraft, setSlugDraft] = useState(category.slug);
   const [sortDraft, setSortDraft] = useState(String(category.sortOrder || 1));
   const [urlError, setUrlError] = useState("");
+
+  useEffect(() => {
+    setNameDraft(category.name);
+    setSlugDraft(category.slug);
+  }, [category.name, category.slug]);
 
   useEffect(() => {
     setSortDraft(String(category.sortOrder || 1));
@@ -122,7 +131,19 @@ function CategoryRow({ category, productCount, image, onFileChange, onImageChang
     }
   };
 
-  const canToggleActive = category.active ? canDeactivate : true;
+  const handleDetailsSave = async () => {
+    const nextName = nameDraft.trim().replace(/\s+/g, " ");
+    const nextSlug = slugifyCategory(slugDraft || nextName);
+    if (!nextName) return;
+    setSlugDraft(nextSlug);
+    if (nextName === category.name && nextSlug === category.slug) return;
+    setDetailsSaving(true);
+    try {
+      await onDetailsChange(nextName, nextSlug);
+    } finally {
+      setDetailsSaving(false);
+    }
+  };
 
   return (
     <div className="border-b border-border/50 last:border-0 p-4 sm:p-5 hover:bg-background/20 transition-colors">
@@ -172,6 +193,39 @@ function CategoryRow({ category, productCount, image, onFileChange, onImageChang
           <p className="text-xs text-muted-foreground mt-1">
             {productCount} product{productCount !== 1 ? "s" : ""}
           </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 mt-3 max-w-3xl">
+            <input
+              type="text"
+              className="h-8 bg-background border border-border px-2 text-xs text-white outline-none focus:border-primary transition-colors"
+              value={nameDraft}
+              onChange={event => {
+                const next = event.target.value;
+                setNameDraft(next);
+                if (!slugDraft || slugDraft === slugifyCategory(category.name)) {
+                  setSlugDraft(slugifyCategory(next));
+                }
+              }}
+              onKeyDown={event => event.key === "Enter" && handleDetailsSave()}
+              aria-label="Category name"
+            />
+            <input
+              type="text"
+              className="h-8 bg-background border border-border px-2 text-xs text-white outline-none focus:border-primary transition-colors font-mono"
+              value={slugDraft}
+              onChange={event => setSlugDraft(slugifyCategory(event.target.value))}
+              onKeyDown={event => event.key === "Enter" && handleDetailsSave()}
+              aria-label="Category slug"
+            />
+            <button
+              type="button"
+              onClick={handleDetailsSave}
+              disabled={detailsSaving || (nameDraft.trim() === category.name && slugifyCategory(slugDraft || nameDraft) === category.slug)}
+              className="h-8 px-3 border border-border text-[10px] uppercase tracking-widest text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+            >
+              {detailsSaving ? <Loader2 size={12} className="animate-spin" /> : "Save"}
+            </button>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
             <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Sort</span>
@@ -247,20 +301,12 @@ function CategoryRow({ category, productCount, image, onFileChange, onImageChang
 
         <button
           onClick={() => onSetActive(!category.active)}
-          disabled={!canToggleActive || saving}
-          title={
-            category.active && !canDeactivate
-              ? `${productCount} products use this category. Reassign first.`
-              : category.active
-                ? "Deactivate category"
-                : "Activate category"
-          }
+          disabled={saving}
+          title={category.active ? "Deactivate category" : "Activate category"}
           className={`flex-shrink-0 w-9 h-9 flex items-center justify-center border transition-colors ${
-            !canToggleActive
-              ? "border-border text-muted-foreground/30 cursor-not-allowed"
-              : category.active
-                ? "border-border text-muted-foreground hover:text-red-500 hover:border-red-500/40"
-                : "border-primary/50 text-primary hover:bg-primary hover:text-black"
+            category.active
+              ? "border-border text-muted-foreground hover:text-red-500 hover:border-red-500/40"
+              : "border-primary/50 text-primary hover:bg-primary hover:text-black"
           }`}
         >
           {category.active ? <Trash2 size={15} /> : <Plus size={15} />}
@@ -278,6 +324,8 @@ export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [newCategory, setNewCategory] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newSlugTouched, setNewSlugTouched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -316,11 +364,19 @@ export default function AdminCategoriesPage() {
   const handleAdd = async () => {
     const trimmed = newCategory.trim();
     if (!trimmed) return;
-    if (!(ALLOWED_CATEGORIES as readonly string[]).includes(trimmed)) {
-      toast({ title: "Category not allowed", description: `Use only: ${ALLOWED_CATEGORIES.join(", ")}`, variant: "destructive" });
+    const slug = slugifyCategory(newSlug || trimmed);
+    if (!slug) {
+      toast({ title: "Invalid slug", description: "Use a readable category name or slug.", variant: "destructive" });
       return;
     }
-    const existing = categories.find(category => category.name.toLowerCase() === trimmed.toLowerCase());
+    if (slug === "custom-design") {
+      toast({ title: "Category not allowed", description: "Custom Design stays separate from product categories.", variant: "destructive" });
+      return;
+    }
+    const existing = categories.find(category =>
+      category.name.toLowerCase() === trimmed.toLowerCase() ||
+      category.slug.toLowerCase() === slug
+    );
     if (existing) {
       toast({
         title: "Category already exists",
@@ -336,10 +392,13 @@ export default function AdminCategoriesPage() {
     try {
       await saveCategory({
         name: trimmed,
+        slug,
         active: true,
-        sortOrder: (ALLOWED_CATEGORIES as readonly string[]).indexOf(trimmed) + 1,
+        sortOrder: categories.length + 1,
       });
       setNewCategory("");
+      setNewSlug("");
+      setNewSlugTouched(false);
       await loadData();
       toast({ title: "Category saved", description: trimmed });
     } catch (err) {
@@ -354,11 +413,6 @@ export default function AdminCategoriesPage() {
   };
 
   const handleSetActive = async (category: CategoryRecord, active: boolean) => {
-    const count = getCount(category.name);
-    if (!active && count > 0) {
-      toast({ title: "Cannot deactivate", description: `${count} product${count !== 1 ? "s" : ""} still use this category. Reassign them first.`, variant: "destructive" });
-      return;
-    }
     setSaving(true);
     try {
       await setCategoryActive(category.id, active);
@@ -381,6 +435,7 @@ export default function AdminCategoriesPage() {
       await saveCategory({
         id: category.id,
         name: category.name,
+        slug: category.slug,
         coverImageUrl: category.coverImageUrl,
         active: category.active,
         sortOrder,
@@ -398,6 +453,30 @@ export default function AdminCategoriesPage() {
     }
   };
 
+  const handleDetailsChange = async (category: CategoryRecord, name: string, slug: string) => {
+    setSaving(true);
+    try {
+      await saveCategory({
+        id: category.id,
+        name,
+        slug,
+        coverImageUrl: category.coverImageUrl,
+        active: category.active,
+        sortOrder: category.sortOrder,
+      });
+      await loadData();
+      toast({ title: "Category updated", description: name });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update category.",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleImageChange = async (category: CategoryRecord, img: string | null) => {
     const previous = categories;
     setCategories(prev => prev.map(item =>
@@ -406,6 +485,7 @@ export default function AdminCategoriesPage() {
     try {
       const updated = await saveCategoryImage(category.id, img);
       setCategories(prev => prev.map(item => item.id === category.id ? updated : item));
+      await loadData();
       toast({ title: "Photo updated", description: category.name });
     } catch (err) {
       setCategories(previous);
@@ -436,13 +516,27 @@ export default function AdminCategoriesPage() {
 
       <div className="bg-card border border-border p-5 sm:p-6 mb-6">
         <h2 className="font-display text-lg uppercase tracking-widest text-white mb-4">ADD CATEGORY</h2>
-        <div className="flex gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3">
           <Input
-            placeholder="T-Shirts, Shirts, or Pants"
+            placeholder="Hoodies, Jackets, Shorts..."
             value={newCategory}
-            onChange={e => setNewCategory(e.target.value)}
+            onChange={e => {
+              const next = e.target.value;
+              setNewCategory(next);
+              if (!newSlugTouched) setNewSlug(slugifyCategory(next));
+            }}
             onKeyDown={e => e.key === "Enter" && handleAdd()}
-            className="bg-background rounded-none border-border flex-1 max-w-sm"
+            className="bg-background rounded-none border-border"
+          />
+          <Input
+            placeholder="slug"
+            value={newSlug}
+            onChange={e => {
+              setNewSlugTouched(true);
+              setNewSlug(slugifyCategory(e.target.value));
+            }}
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            className="bg-background rounded-none border-border font-mono"
           />
           <button
             onClick={handleAdd}
@@ -475,16 +569,16 @@ export default function AdminCategoriesPage() {
               image={getImage(category)}
               onFileChange={file => handleFileChange(category, file)}
               onImageChange={img => handleImageChange(category, img)}
+              onDetailsChange={(name, slug) => handleDetailsChange(category, name, slug)}
               onSetActive={active => handleSetActive(category, active)}
               onSortChange={sortOrder => handleSortChange(category, sortOrder)}
-              canDeactivate={getCount(category.name) === 0}
             />
           ))
         )}
       </div>
 
       <p className="text-xs text-muted-foreground mt-4 uppercase tracking-widest">
-        Only T-Shirts, Shirts, and Pants are allowed. Custom Design stays separate from product categories.
+        Custom Design stays separate from product categories.
       </p>
     </AdminLayout>
   );

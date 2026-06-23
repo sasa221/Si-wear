@@ -5,7 +5,7 @@ import { getProductsAsync } from "@/hooks/useProducts";
 import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
-import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
+import { type Product } from "@/data/products";
 
 const FALLBACK_IMAGES: Record<string, string> = {
   "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
@@ -14,7 +14,6 @@ const FALLBACK_IMAGES: Record<string, string> = {
 };
 
 const GENERIC_FALLBACK = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&h=750&fit=crop&q=80";
-const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
 
 export default function HomePage() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -30,7 +29,7 @@ export default function HomePage() {
     getProductsAsync({ activeOnly: true })
       .then(products => {
         if (!cancelled) {
-          setAllProducts(products.filter(product => ALLOWED_CATEGORY_SET.has(product.category)));
+          setAllProducts(products);
         }
       })
       .catch(err => {
@@ -41,7 +40,7 @@ export default function HomePage() {
       });
     getCategoriesAsync()
       .then(items => {
-        if (!cancelled) setCategories(items.filter(category => ALLOWED_CATEGORY_SET.has(category.name)));
+        if (!cancelled) setCategories(items);
       })
       .catch(err => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load categories.");

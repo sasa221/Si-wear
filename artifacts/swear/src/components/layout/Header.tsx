@@ -6,11 +6,9 @@ import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { subscribeToTableChanges, supabaseConfigured } from "@/lib/supabase";
 import { getProductsAsync } from "@/hooks/useProducts";
-import { ALLOWED_CATEGORIES, type Product } from "@/data/products";
+import { type Product } from "@/data/products";
 import { getProductImage, useFallbackImage } from "@/lib/images";
 import { defaultStoreSettings, getStoreSettings } from "@/lib/storeSettings";
-
-const ALLOWED_CATEGORY_SET = new Set<string>(ALLOWED_CATEGORIES);
 
 export function Header() {
   const { totalItems } = useCart();
@@ -87,7 +85,7 @@ export function Header() {
     let cancelled = false;
     getProductsAsync({ activeOnly: true })
       .then(products => {
-        if (!cancelled) setSearchProducts(products.filter(product => ALLOWED_CATEGORY_SET.has(product.category)));
+        if (!cancelled) setSearchProducts(products);
       })
       .catch(err => console.error("Failed to load search products:", err));
     return () => { cancelled = true; };
@@ -99,7 +97,6 @@ export function Header() {
     return searchProducts
       .filter(product =>
         product.status === "active" &&
-        ALLOWED_CATEGORY_SET.has(product.category) &&
         (
           product.name.toLowerCase().includes(query) ||
           product.category.toLowerCase().includes(query)
@@ -324,7 +321,7 @@ export function Header() {
                   autoFocus
                   value={searchQuery}
                   onChange={event => setSearchQuery(event.target.value)}
-                  placeholder="Search T-Shirts, Shirts, Pants..."
+                  placeholder="Search products or categories..."
                   className="w-full h-14 bg-[#111] border border-border pl-11 pr-4 text-white outline-none focus:border-primary font-display uppercase tracking-widest text-sm"
                   style={{ fontSize: "16px" }}
                 />
