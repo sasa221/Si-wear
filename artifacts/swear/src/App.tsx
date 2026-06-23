@@ -7,6 +7,7 @@ import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import { AnimatePresence } from "framer-motion";
+import { Analytics } from "@vercel/analytics/react";
 
 const Header = lazy(() => import("@/components/layout/Header").then(module => ({ default: module.Header })));
 const Footer = lazy(() => import("@/components/layout/Footer").then(module => ({ default: module.Footer })));
@@ -157,6 +158,7 @@ function App() {
               <AppRouter />
             </WouterRouter>
             <Toaster />
+            <Analytics />
           </CartProvider>
         </AuthProvider>
       </TooltipProvider>
