@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import ExternalNativeAd from "@/components/ads/ExternalNativeAd";
 
 export default function SizeChartPage() {
   return (
@@ -11,10 +12,11 @@ export default function SizeChartPage() {
       <h1 className="text-5xl md:text-7xl font-display font-black uppercase text-white mb-6 text-center">SIZE CHART</h1>
       <p className="text-muted-foreground text-center mb-16 text-lg">Find your perfect fit. Our garments run true to the intended cut (oversized means oversized).</p>
 
-      <div className="space-y-16">
-        {/* T-Shirt Chart */}
-        <div>
-          <h2 className="text-3xl font-display uppercase text-primary mb-6 border-l-4 border-primary pl-4">Oversized Heavy Cotton T-Shirt</h2>
+        <div className="space-y-16">
+          {/* T-Shirt Chart */}
+
+          <div>
+            <h2 className="text-3xl font-display uppercase text-primary mb-6 border-l-4 border-primary pl-4">Oversized Heavy Cotton T-Shirt</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse bg-card">
               <thead>
@@ -129,7 +131,15 @@ export default function SizeChartPage() {
         {/* How to measure */}
         <div className="border border-border p-8 bg-card mt-16">
           <h2 className="text-3xl font-display uppercase text-white mb-6">HOW TO MEASURE</h2>
+
+          <div className="mt-12">
+            <ExternalNativeAd />
+          </div>
+
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-muted-foreground">
+
+
             <div>
               <h3 className="text-white font-bold uppercase mb-2 tracking-wider">Width</h3>
               <p>Measure across the chest, 2cm below the armhole. Lay the garment flat.</p>

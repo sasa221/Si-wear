@@ -6,6 +6,7 @@ import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { type Product } from "@/data/products";
+import ExternalNativeAd from "@/components/ads/ExternalNativeAd";
 
 const FALLBACK_IMAGES: Record<string, string> = {
   "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
@@ -70,6 +71,7 @@ export default function HomePage() {
       {/* ── Hero ── */}
       <section
         className="relative w-full flex items-end justify-center"
+
         style={{
           minHeight: "520px",
           height: "75svh",
@@ -202,7 +204,9 @@ export default function HomePage() {
       {(productsLoading || latestDrops.length > 0) && (
         <section className="py-8 md:py-12" style={{ background: "#111111" }}>
           <div className="max-w-[1280px] mx-auto px-4">
+
             <div className="flex items-baseline justify-between mb-5 md:mb-8">
+
               <motion.h2
                 initial={{ opacity: 0, x: -12 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -217,8 +221,13 @@ export default function HomePage() {
               </Link>
             </div>
             {productsLoading ? <ProductGridSkeleton count={4} /> : <ProductGrid products={latestDrops} />}
+
+            <div className="mt-10">
+              <ExternalNativeAd />
+            </div>
           </div>
         </section>
+
       )}
 
       {/* ── Best Sellers ── */}
