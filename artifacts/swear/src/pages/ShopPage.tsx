@@ -142,11 +142,13 @@ export default function ShopPage() {
           <>
             <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
 
-            <div className="mt-10 flex justify-center">
-              <div className="hidden md:block">
-                <AdsterraBannerAd variant="728x90" />
+            <div className="mt-12 mb-12 flex justify-center">
+              <div className="hidden md:flex justify-center max-w-[728px]">
+                <AdsterraBannerAd variant="728x90" className="max-w-[728px]" />
               </div>
             </div>
+
+
           </>
         )}
       </div>

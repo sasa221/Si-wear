@@ -56,6 +56,7 @@ export default function AdsterraBannerAd({
   variant: AdsterraBannerVariant;
   className?: string;
 }) {
+
   const [location] = useLocation();
   const pathname = typeof location === "string" ? location : "";
   const excluded = routeIsExcluded(pathname);

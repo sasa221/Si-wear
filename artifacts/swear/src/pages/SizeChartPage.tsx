@@ -132,17 +132,7 @@ export default function SizeChartPage() {
         <div className="border border-border p-8 bg-card mt-16">
           <h2 className="text-3xl font-display uppercase text-white mb-6">HOW TO MEASURE</h2>
 
-          <div className="mt-12 flex justify-center">
-            <AdsterraBannerAd variant="300x250" />
-          </div>
-
-
-
-
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-muted-foreground">
-
-
             <div>
               <h3 className="text-white font-bold uppercase mb-2 tracking-wider">Width</h3>
               <p>Measure across the chest, 2cm below the armhole. Lay the garment flat.</p>
@@ -152,7 +142,14 @@ export default function SizeChartPage() {
               <p>Measure from the highest point of the shoulder down to the bottom hem.</p>
             </div>
           </div>
+
+          {/* 300x250 only: near bottom, centered, after instructions, before footer */}
+          <div className="mt-12 mb-2 flex justify-center">
+            <AdsterraBannerAd variant="300x250" className="max-w-[300px]" />
+          </div>
+
         </div>
+
       </div>
     </motion.div>
   );
