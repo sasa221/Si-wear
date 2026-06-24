@@ -143,8 +143,14 @@ export default function ShopPage() {
             <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
 
             <div className="mt-12 mb-12 flex justify-center">
-              <div className="hidden md:flex justify-center max-w-[728px]">
+              {/* Desktop/tablet >= 760px: 728x90 */}
+              <div className="hidden md:flex lg:flex justify-center max-w-[728px]">
                 <AdsterraBannerAd variant="728x90" className="max-w-[728px]" />
+              </div>
+
+              {/* Mobile < 760px: 300x250 */}
+              <div className="flex md:hidden justify-center max-w-[300px]">
+                <AdsterraBannerAd variant="300x250" className="max-w-[300px]" />
               </div>
             </div>
 
