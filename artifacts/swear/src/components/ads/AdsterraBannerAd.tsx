@@ -69,7 +69,9 @@ export default function AdsterraBannerAd({
   }, [atOptions.height, atOptions.key, atOptions.width]);
 
   const mountedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
+
 
   // Remount/route change support by clearing per-wrapper content.
   useEffect(() => {
@@ -126,9 +128,10 @@ export default function AdsterraBannerAd({
     // Actually inject into document so the snippet runs in page context.
     // The external script expects window.atOptions and uses the wrapper to render.
 
-    const injectContainer = document.body;
+    // Inject scripts INSIDE the wrapper container (NOT into body/head)
+    const atOptionsTarget = wrapperEl;
 
-    injectContainer.appendChild(atOptionsScript);
+    atOptionsTarget.appendChild(atOptionsScript);
 
     // External invoke snippet (exact URL)
     const invokeScript = document.createElement("script");
@@ -144,8 +147,6 @@ export default function AdsterraBannerAd({
 
     invokeScript.onload = () => {
       window.clearTimeout(timeout);
-      // Do not show placeholder text unless it fails after load.
-      // We keep reserved space; if provider doesn't render, it will remain empty.
     };
     invokeScript.onerror = () => {
       window.clearTimeout(timeout);
@@ -153,8 +154,8 @@ export default function AdsterraBannerAd({
       safeInvokeWarn(`script error for variant ${variant}`);
     };
 
-    // Append invoke after atOptions inline snippet.
-    injectContainer.appendChild(invokeScript);
+    atOptionsTarget.appendChild(invokeScript);
+
 
     mountedRef.current = true;
 
@@ -181,11 +182,12 @@ export default function AdsterraBannerAd({
 
         <div
           id={wrapperId}
-          className="adsterra-wrapper bg-[#0b0b0b] border border-[#1a1a1a]"
+          ref={containerRef}
+          className="adsterra-wrapper"
           style={{
-            minWidth: `${minWidth}px`,
+            width: `${atOptions.width}px`,
+            height: `${atOptions.height}px`,
             maxWidth: "100%",
-            overflow: "hidden",
           }}
         />
 
