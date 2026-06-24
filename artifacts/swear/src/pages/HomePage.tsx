@@ -7,6 +7,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { type Product } from "@/data/products";
 import AdsterraBannerAd from "@/components/ads/AdsterraBannerAd";
+import GoogleAdSenseAd from "@/components/ads/GoogleAdSenseAd";
 
 const FALLBACK_IMAGES: Record<string, string> = {
   "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
@@ -305,6 +306,8 @@ export default function HomePage() {
           </p>
         </div>
       </section>
+
+      <GoogleAdSenseAd />
     </motion.div>
   );
 }
