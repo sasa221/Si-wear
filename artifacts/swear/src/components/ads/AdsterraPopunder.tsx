@@ -10,6 +10,8 @@ const ARM_DELAY_MS = 10_000; // normal mode
 const DEBUG_ARM_DELAY_MS = 3_000; // debug mode
 
 const QUERY_DEBUG_KEY = "addebug";
+const DESKTOP_MIN_WIDTH = 1024;
+const MOBILE_OR_TABLET_USER_AGENT = /Android|iPhone|iPad|iPod|Mobile/i;
 
 const ALLOWED_ROUTES: string[] = ["/", "/shop", "/size-chart", "/about", "/contact"];
 const BLOCKED_PREFIXES: string[] = [
@@ -37,6 +39,29 @@ function getAdDebugEnabled() {
   } catch {
     return false;
   }
+}
+
+function getDeviceBlockState() {
+  if (typeof window === "undefined") {
+    return {
+      mobileBlocked: false,
+      userAgentBlocked: false,
+      widthBlocked: false,
+      width: 0,
+    };
+  }
+
+  const width = window.innerWidth || 0;
+  const userAgent = window.navigator?.userAgent || "";
+  const userAgentBlocked = MOBILE_OR_TABLET_USER_AGENT.test(userAgent);
+  const widthBlocked = width < DESKTOP_MIN_WIDTH;
+
+  return {
+    mobileBlocked: userAgentBlocked || widthBlocked,
+    userAgentBlocked,
+    widthBlocked,
+    width,
+  };
 }
 
 function safeSetStorageValue(value: string) {
@@ -83,6 +108,7 @@ export default function AdsterraPopunder() {
     scriptInjected: false,
     scriptLoaded: false,
     scriptError: false,
+    mobileBlocked: false,
     lastShownAt: null as string | null,
   });
 
@@ -127,6 +153,7 @@ export default function AdsterraPopunder() {
     armedRef.current = false;
     debugStateRef.current.armed = false;
     debugStateRef.current.interactionReceived = false;
+    debugStateRef.current.mobileBlocked = getDeviceBlockState().mobileBlocked;
 
     if (armTimerRef.current) {
       window.clearTimeout(armTimerRef.current);
@@ -146,6 +173,10 @@ export default function AdsterraPopunder() {
     }
 
     if (typeof window === "undefined") return;
+    if (getDeviceBlockState().mobileBlocked) {
+      bumpDebug();
+      return;
+    }
     if (!safeRoute) return;
 
     const lastRaw = safeGetStorageValue();
@@ -191,11 +222,13 @@ export default function AdsterraPopunder() {
   // Gesture injection: pointerdown/touchstart/click ONLY (no scroll reliance).
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (getDeviceBlockState().mobileBlocked) return;
 
     const events: (keyof WindowEventMap)[] = ["pointerdown", "touchstart", "click"];
 
     const injectOnce = () => {
       if (attemptedRef.current) return;
+      if (getDeviceBlockState().mobileBlocked) return;
       if (!isAdSafeRoute(pathname)) return;
 
       // arm gating
@@ -280,6 +313,7 @@ export default function AdsterraPopunder() {
   // Debug box: debug mode only
   if (!debugEnabled) return null;
 
+  const deviceBlockState = getDeviceBlockState();
   const capRaw = safeGetStorageValue();
   const capMs = capRaw ? Number(capRaw) : 0;
   const within24h = computeWithin24h(capMs, Date.now());
@@ -306,6 +340,7 @@ export default function AdsterraPopunder() {
     <div style={debugBoxStyle}>
       <div>pathname: {pathname}</div>
       <div>route allowed: {safeRoute ? "yes" : "no"}</div>
+      <div>mobile blocked: {deviceBlockState.mobileBlocked ? "yes" : "no"}</div>
       <div>cap passed: {capPassed ? "yes" : "no"}</div>
       <div>debug mode: yes</div>
       <div>armed: {debugStateRef.current.armed ? "yes" : "no"}</div>
