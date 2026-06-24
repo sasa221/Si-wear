@@ -6,8 +6,8 @@ import { getCategoriesAsync, type CategoryRecord } from "@/lib/categoryService";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { type Product } from "@/data/products";
-import AdsterraBannerAd from "@/components/ads/AdsterraBannerAd";
 import GoogleAdSenseAd from "@/components/ads/GoogleAdSenseAd";
+import ResponsiveAdsterraBanner from "@/components/ads/ResponsiveAdsterraBanner";
 
 const FALLBACK_IMAGES: Record<string, string> = {
   "T-Shirts":  "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop&q=80",
@@ -222,20 +222,6 @@ export default function HomePage() {
               </Link>
             </div>
             {productsLoading ? <ProductGridSkeleton count={4} /> : <ProductGrid products={latestDrops} />}
-
-            <div className="mt-12 mb-12 flex justify-center">
-              {/* Desktop/tablet >= 760px: 728x90 */}
-              <div className="hidden md:flex lg:flex justify-center max-w-[728px]">
-                <AdsterraBannerAd variant="728x90" className="max-w-[728px]" />
-              </div>
-
-              {/* Mobile < 760px: 300x250 */}
-              <div className="flex md:hidden justify-center max-w-[300px]">
-                <AdsterraBannerAd variant="300x250" className="max-w-[300px]" />
-              </div>
-            </div>
-
-
           </div>
         </section>
 
@@ -265,6 +251,9 @@ export default function HomePage() {
       )}
 
       {/* ── Custom Design Banner ── */}
+      <ResponsiveAdsterraBanner className="mx-auto w-full max-w-[728px] px-4" />
+      <GoogleAdSenseAd />
+
       <section className="py-10 md:py-16 border-y border-[#222]" style={{ background: "#111111" }}>
         <div className="max-w-[1280px] mx-auto px-4 flex flex-col items-center text-center">
           <motion.h2
@@ -307,7 +296,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <GoogleAdSenseAd />
     </motion.div>
   );
 }

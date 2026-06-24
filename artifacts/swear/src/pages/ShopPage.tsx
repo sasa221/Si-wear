@@ -7,7 +7,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { ProductGridSkeleton } from "@/components/products/ProductGridSkeleton";
 import { ChevronDown } from "lucide-react";
 import { type Product } from "@/data/products";
-import AdsterraBannerAd from "@/components/ads/AdsterraBannerAd";
+import ResponsiveAdsterraBanner from "@/components/ads/ResponsiveAdsterraBanner";
 
 export default function ShopPage() {
   const searchString = useSearch();
@@ -142,17 +142,7 @@ export default function ShopPage() {
           <>
             <ProductGrid products={filteredProducts} emptyMessage={`No products in ${category} yet.`} />
 
-            <div className="mt-12 mb-12 flex justify-center">
-              {/* Desktop/tablet >= 760px: 728x90 */}
-              <div className="hidden md:flex lg:flex justify-center max-w-[728px]">
-                <AdsterraBannerAd variant="728x90" className="max-w-[728px]" />
-              </div>
-
-              {/* Mobile < 760px: 300x250 */}
-              <div className="flex md:hidden justify-center max-w-[300px]">
-                <AdsterraBannerAd variant="300x250" className="max-w-[300px]" />
-              </div>
-            </div>
+            <ResponsiveAdsterraBanner className="mx-auto w-full max-w-[728px] px-4" />
 
 
           </>
