@@ -59,11 +59,11 @@ export default function CartPage() {
               >
                 {/* Image + info */}
                 <div className="flex gap-3 flex-1 min-w-0 md:col-span-6">
-                  <div className="w-20 h-26 sm:w-24 sm:h-32 bg-card border border-border flex-shrink-0" style={{ height: "104px" }}>
+                  <div className="product-image-panel w-20 h-26 sm:w-24 sm:h-32 border border-border flex-shrink-0" style={{ height: "104px" }}>
                     <img
                       src={item.image || getProductImage(item.product.images)}
                       alt={item.productName || item.product.name}
-                      className="w-full h-full object-cover"
+                      className="product-image product-image--thumb"
                       loading="lazy"
                       width={96}
                       height={128}

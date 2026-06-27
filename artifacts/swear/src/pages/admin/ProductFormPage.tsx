@@ -589,11 +589,11 @@ export default function ProductFormPage() {
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
                       {images.map((src, i) => (
                         <div key={i} className={`relative group border ${i === 0 ? "border-primary" : "border-border"}`}>
-                          <div style={{ aspectRatio: "4/5" }}>
+                          <div className="product-image-frame">
                             <img
                               src={src}
                               alt={`Product image ${i + 1}`}
-                              className="w-full h-full object-cover"
+                              className="product-image product-image--thumb"
                               loading="lazy"
                               width={160}
                               height={200}

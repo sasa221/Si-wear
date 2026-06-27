@@ -352,11 +352,11 @@ export function Header() {
                         onClick={closeSearch}
                         className="flex items-center gap-4 p-3 hover:bg-primary/10 transition-colors"
                       >
-                        <div className="w-16 h-20 bg-card border border-border overflow-hidden flex-shrink-0">
+                        <div className="product-image-panel w-16 h-20 border border-border flex-shrink-0">
                           <img
                             src={getProductImage(product.images)}
                             alt={product.name}
-                            className="w-full h-full object-cover"
+                            className="product-image product-image--thumb"
                             loading="lazy"
                             width={64}
                             height={80}

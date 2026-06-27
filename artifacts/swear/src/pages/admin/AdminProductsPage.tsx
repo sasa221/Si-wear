@@ -200,11 +200,11 @@ export default function AdminProductsPage() {
               ) : products.map(product => (
                 <tr key={product.id} className="border-b border-border/50 hover:bg-background/20 transition-colors">
                   <td className="py-3 px-4">
-                    <div className="w-10 h-13 bg-background border border-border overflow-hidden" style={{ height: "52px" }}>
+                    <div className="product-image-panel w-10 h-13 border border-border" style={{ height: "52px" }}>
                       <img
                         src={getProductImage(product.images)}
                         alt={product.name}
-                        className="w-full h-full object-cover"
+                        className="product-image product-image--tight"
                         loading="lazy"
                         width={40}
                         height={52}

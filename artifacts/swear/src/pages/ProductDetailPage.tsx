@@ -186,11 +186,11 @@ export default function ProductDetailPage() {
         {/* ── Images ── */}
         <div className="flex flex-col gap-3">
           {/* Main image */}
-          <div className="w-full bg-card border border-border overflow-hidden" style={{ aspectRatio: "4/5" }}>
+          <div className="product-image-frame w-full border border-border">
             <img
               src={mainImage}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="product-image product-image--detail"
               loading="eager"
               width={800}
               height={1000}
@@ -203,13 +203,12 @@ export default function ProductDetailPage() {
               <button
                 key={i}
                 onClick={() => setMainImage(img)}
-                className={`border overflow-hidden ${mainImage === img ? "border-primary" : "border-border"}`}
-                style={{ aspectRatio: "4/5" }}
+                className={`product-image-frame border ${mainImage === img ? "border-primary" : "border-border"}`}
               >
                 <img
                   src={img}
                   alt={`${product.name} view ${i + 1}`}
-                  className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity"
+                  className="product-image product-image--thumb opacity-80 hover:opacity-100 transition-opacity"
                   loading="lazy"
                   width={240}
                   height={300}

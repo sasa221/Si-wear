@@ -403,11 +403,11 @@ export default function CheckoutPage() {
             <div className="space-y-3 mb-5 max-h-[35vh] overflow-y-auto pr-1">
               {items.map((item, index) => (
                 <div key={index} className="flex gap-3 items-start">
-                  <div className="w-14 h-18 sm:w-16 sm:h-20 bg-background border border-border flex-shrink-0 relative" style={{ height: "72px" }}>
+                  <div className="product-image-panel w-14 h-18 sm:w-16 sm:h-20 border border-border flex-shrink-0 relative" style={{ height: "72px" }}>
                     <img
                       src={item.image || getProductImage(item.product.images)}
                       alt={item.productName || item.product.name}
-                      className="w-full h-full object-cover opacity-80"
+                      className="product-image product-image--thumb opacity-80"
                       loading="lazy"
                       width={64}
                       height={80}

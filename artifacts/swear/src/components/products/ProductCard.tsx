@@ -13,11 +13,11 @@ export function ProductCard({ product }: { product: Product }) {
       data-testid={`card-product-${product.id}`}
     >
       {/* Image */}
-      <div className="relative overflow-hidden" style={{ aspectRatio: "4/5" }}>
+      <div className="product-image-frame relative">
         <img
           src={getProductImage(product.images)}
           alt={product.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="product-image"
           loading="lazy"
           width={480}
           height={600}

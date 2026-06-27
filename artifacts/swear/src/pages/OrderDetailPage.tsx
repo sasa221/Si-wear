@@ -214,11 +214,11 @@ export default function OrderDetailPage() {
             <div className="divide-y divide-border">
               {order.items.map((item, idx) => (
                 <div key={`${item.variantId}-${idx}`} className="p-4 flex gap-3 sm:gap-4 items-center">
-                  <div className="w-14 sm:w-16 bg-card border border-border flex-shrink-0 overflow-hidden flex items-center justify-center text-muted-foreground text-[10px] uppercase" style={{ height: "72px" }}>
+                  <div className="product-image-panel w-14 sm:w-16 border border-border flex-shrink-0 text-muted-foreground text-[10px] uppercase" style={{ height: "72px" }}>
                     <img
                       src={productImages.get(item.productId) || getProductImage(undefined)}
                       alt={item.productName}
-                      className="h-full w-full object-cover"
+                      className="product-image product-image--thumb"
                       loading="lazy"
                       width={64}
                       height={72}
